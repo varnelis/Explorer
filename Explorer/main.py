@@ -1,6 +1,7 @@
 import click
 from Explorer.input_recorder.recorder import record_input
 
+
 @click.group()
 def main() -> None:
     pass
