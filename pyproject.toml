@@ -11,6 +11,7 @@ python = "^3.11"
 black = "^23.11.0"
 pyproject-flake8 = "^6.1.0"
 mypy = "^1.7.0"
+click = "^8.1.7"
 
 [tool.black]
 line-length = 88
