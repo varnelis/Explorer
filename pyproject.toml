@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "explorer"
+version = "0.1.0"
+description = "GUI Automation using state of the art ML models"
+authors = ["ArnasVysniauskas <81956480+ArnasVysniauskas@users.noreply.github.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+black = "^23.11.0"
+pyproject-flake8 = "^6.1.0"
+mypy = "^1.7.0"
+
+[tool.black]
+line-length = 88
+
+[tool.flake8]
+max-line-length = 88
+max-complexity = 10
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
