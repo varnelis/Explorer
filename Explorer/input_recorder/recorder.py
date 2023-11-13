@@ -1,4 +1,4 @@
-from pynput import mouse
+from pynput import mouse, keyboard
 import time
 import numpy as np
 import os
@@ -14,6 +14,16 @@ class Recorder:
 
     _start_time: float
 
+    # TODO (Arnas): Represent both using binary, and then apply maps when chages occure.
+    #               Then store both as hex in the capture_log, otherwise we'll store a
+    #               a bunch of zeroes. Keyboard keys:
+    #https://github.com/moses-palmer/pynput/blob/master/lib/pynput/keyboard/_base.py#L162
+    #               I think less than 64, so we can use 0xhhhh'hhhh'hhhh'hhhh
+    #               Mouse keys:
+    #https://github.com/moses-palmer/pynput/blob/master/lib/pynput/mouse/_base.py#L33
+    #               Just 4, so 0xh, here three implemented, 'unknown' skipped. Plus,
+    #               haven't checked scrolling
+    _keyboard_state = None
     _mouse_state = {mouse.Button.left: 0, mouse.Button.middle: 0, mouse.Button.right: 0}
 
     def __init__(self) -> None:
@@ -84,12 +94,21 @@ def on_click(x: int, y: int, button: mouse.Button, pressed: bool) -> bool:
     return True
 
 
+def on_press(key: keyboard.Key) -> None:
+    pass
+
+
+def on_release(key: keyboard.Key) -> None:
+    pass
+
+
 def record_input():
     recorder = Recorder()
-    listener = mouse.Listener(on_move=on_move, on_click=on_click)
+    mouse_listener = mouse.Listener(on_move=on_move, on_click=on_click)
+    keyboard_listener = keyboard.Listener(on_press, on_release)
 
     recorder.start()
-    listener.start()
+    mouse_listener.start()
     for i in range(10):
         # while listener.is_alive():
         time.sleep(1)
