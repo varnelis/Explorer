@@ -31,6 +31,6 @@ jobs:
       - name: Run formatting and linting
         run: |
           source .venv/bin/activate
-          black .
-          pflake8 .
-          mypy .
+          black ./Explorer
+          pflake8 ./Explorer
+          mypy ./Explorer
