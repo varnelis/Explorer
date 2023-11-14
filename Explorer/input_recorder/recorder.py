@@ -9,11 +9,13 @@ AnyKey = keyboard.Key | keyboard.KeyCode | None
 # 68 bits reserved for special keys
 SPECIAL_KEYS_RESERVED = 68
 
+
 class MouseState(IntEnum):
     UNKNOWN = 0x1
     LEFT = 0x2
     MIDDLE = 0x4
     RIGHT = 0x8
+
 
 class KeyboardState(IntEnum):
     UNKNOWN = 0x00000000000000001
@@ -164,10 +166,11 @@ def get_key_mask(key: AnyKey) -> int:
     # TODO (Arnas): should be the other way around, special keys shifted not the
     #               alphanumerical ones, but I am not sure how much space to reserve
     #               for them.
-    elif isinstance(key, keyboard.KeyCode):
-        return key.vk << SPECIAL_KEYS_RESERVED
-    elif key is None:
-        return KeyboardState.UNKNOWN.value
+    if isinstance(key, keyboard.KeyCode):
+        id = key.vk
+        if id is not None:
+            return id << SPECIAL_KEYS_RESERVED
+    return KeyboardState.UNKNOWN.value
 
 
 class Recorder:
@@ -195,7 +198,7 @@ class Recorder:
 
         Recorder._idx = 0
         Recorder._data_limit = 1000
-        Recorder._data = np.empty((Recorder._data_limit, 6), dtype = int)
+        Recorder._data = np.empty((Recorder._data_limit, 6), dtype=int)
         Recorder._running = True
 
     @classmethod
@@ -209,8 +212,8 @@ class Recorder:
             x,
             y,
             cls._mouse_state,
-            cls._keyboard_state & ((1 << SPECIAL_KEYS_RESERVED) - 1), # special chars
-            cls._keyboard_state >> SPECIAL_KEYS_RESERVED # alphanumericals
+            cls._keyboard_state & ((1 << SPECIAL_KEYS_RESERVED) - 1),  # special chars
+            cls._keyboard_state >> SPECIAL_KEYS_RESERVED,  # alphanumericals
         ]
 
         cls._idx += 1
