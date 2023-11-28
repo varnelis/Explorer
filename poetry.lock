@@ -92,6 +92,16 @@ pycodestyle = ">=2.11.0,<2.12.0"
 pyflakes = ">=3.1.0,<3.2.0"
 
 [[package]]
+name = "imagegrab"
+version = "0.0.3"
+description = "Imagegrab"
+optional = false
+python-versions = "*"
+files = [
+    {file = "Imagegrab-0.0.3.tar.gz", hash = "sha256:804af0ea0bf3f7d918aed625356bd2cdd42d441dbb51e66a7e2eb54451b76925"},
+]
+
+[[package]]
 name = "mccabe"
 version = "0.7.0"
 description = "McCabe checker, plugin for flake8"
@@ -550,4 +560,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "50e5fd56ddccf33e2e6543981c7dc8466d84f8b32a4849a3c123bd7e14de2efa"
+content-hash = "bcc1454a232035472245d4156f44bd8a2a12e63a63a358aa71250c0678e03278"
