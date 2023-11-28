@@ -8,6 +8,8 @@ from Explorer.io.key_map import AnyButton, AnyKey
 
 
 class Recorder:
+    record_data = True
+
     _path_to_file: str
 
     _idx: int = 0
@@ -19,8 +21,16 @@ class Recorder:
     _running = False
 
     def __init__(self) -> None:
-        Recorder._path_to_file = "./temp/capture_log.csv"
+        Recorder._running = True
+        self.mouse_listener = mouse.Listener(Recorder.__on_move, Recorder.__on_click)
+        self.keyboard_listener = keyboard.Listener(
+            Recorder.__on_press, Recorder.__on_release
+        )
 
+        if Recorder.record_data is False:
+            return
+        
+        Recorder._path_to_file = "./temp/capture_log.csv"
         if not os.path.isdir("./temp"):
             os.mkdir("./temp")
         if os.path.isfile(Recorder._path_to_file):
@@ -29,12 +39,7 @@ class Recorder:
         Recorder._idx = 0
         Recorder._data_limit = 1000
         Recorder._data = np.empty((Recorder._data_limit, 6), dtype=int)
-        Recorder._running = True
 
-        self.mouse_listener = mouse.Listener(Recorder.__on_move, Recorder.__on_click)
-        self.keyboard_listener = keyboard.Listener(
-            Recorder.__on_press, Recorder.__on_release
-        )
 
     def start(self) -> None:
         Recorder._start_time = time.time()
@@ -52,6 +57,9 @@ class Recorder:
 
     @classmethod
     def __record(cls) -> None:
+        if cls.record_data is False:
+            return
+        
         x, y = IOState.get_mouse_pos()
         cls._data[cls._idx % cls._data_limit] = [
             cls.current_time(),
@@ -68,6 +76,9 @@ class Recorder:
 
     @classmethod
     def __save_data(cls):
+        if cls.record_data is False:
+            return
+        
         df = pd.DataFrame(
             cls._data[: ((cls._idx - 1) % cls._data_limit) + 1],
             columns=["time(ms)", "x", "y", "mouse_state", "special_keys", "vk"],
