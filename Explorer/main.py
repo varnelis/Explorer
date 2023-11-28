@@ -1,5 +1,6 @@
 import click
-from Explorer.input_recorder.recorder import record_input
+from Explorer.io.recorder import Recorder
+import time
 
 
 @click.group()
@@ -14,7 +15,12 @@ def hello_world() -> None:
 
 @click.command()
 def record() -> None:
-    record_input()
+    recorder = Recorder()
+    recorder.start()
+
+    while recorder.is_running():
+        time.sleep(1)
+    recorder.finish()
 
 
 main.add_command(hello_world)
