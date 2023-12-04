@@ -29,7 +29,7 @@ class Recorder:
 
         if Recorder.record_data is False:
             return
-        
+
         Recorder._path_to_file = "./temp/capture_log.csv"
         if not os.path.isdir("./temp"):
             os.mkdir("./temp")
@@ -39,7 +39,6 @@ class Recorder:
         Recorder._idx = 0
         Recorder._data_limit = 1000
         Recorder._data = np.empty((Recorder._data_limit, 6), dtype=int)
-
 
     def start(self) -> None:
         Recorder._start_time = time.time()
@@ -59,7 +58,7 @@ class Recorder:
     def __record(cls) -> None:
         if cls.record_data is False:
             return
-        
+
         x, y = IOState.get_mouse_pos()
         cls._data[cls._idx % cls._data_limit] = [
             cls.current_time(),
@@ -78,7 +77,7 @@ class Recorder:
     def __save_data(cls):
         if cls.record_data is False:
             return
-        
+
         df = pd.DataFrame(
             cls._data[: ((cls._idx - 1) % cls._data_limit) + 1],
             columns=["time(ms)", "x", "y", "mouse_state", "special_keys", "vk"],
