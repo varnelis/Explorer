@@ -18,14 +18,20 @@ class IOState:
     _keyboard_state: int = 0x0
 
     _current_applications: set[int] = set()
-    _updaters: dict[str, dict[int, list[
-        Callable[[tuple[int, int]], None] |
-        Callable[[tuple[int, int], AnyButton, bool], None] |
-        Callable[[AnyKey], None]
-    ]]] = {
+    _updaters: dict[
+        str,
+        dict[
+            int,
+            list[
+                Callable[[tuple[float, float]], None]
+                | Callable[[tuple[float, float], AnyButton, bool], None]
+                | Callable[[AnyKey], None]
+            ],
+        ],
+    ] = {
         "mouse_state": defaultdict(list),
         "mouse_pos": defaultdict(list),
-        "keyboard_state": defaultdict(list)
+        "keyboard_state": defaultdict(list),
     }
 
     def __init__(self, id: int | None = None):
@@ -43,7 +49,9 @@ class IOState:
                 updators.pop(self._access_id)
         IOState._current_applications.remove(self._access_id)
 
-    def attach_updater(self, updater, target: Literal["mouse_state", "mouse_pos", "keyboard_state"]):
+    def attach_updater(
+        self, updater, target: Literal["mouse_state", "mouse_pos", "keyboard_state"]
+    ):
         if target not in IOState._updaters.keys():
             raise ValueError(f"target {target} does not exist in IOState updaters list")
         IOState._updaters[target][self._access_id].append(updater)
@@ -53,7 +61,7 @@ class IOState:
         return cls._mouse_state
 
     @classmethod
-    def get_mouse_pos(cls) -> tuple[int, int]:
+    def get_mouse_pos(cls) -> tuple[float, float]:
         return cls._mouse_pos
 
     @classmethod
@@ -68,7 +76,11 @@ class IOState:
         cls._mouse_state = cls._mouse_state ^ MOUSE_MAP_PYNPUT[button].value
         for updators in cls._updaters["mouse_state"].values():
             for u in updators:
-                u(cls.get_mouse_pos(), button, cls._mouse_state & MOUSE_MAP_PYNPUT[button].value != 0)
+                u(
+                    cls.get_mouse_pos(),
+                    button,
+                    cls._mouse_state & MOUSE_MAP_PYNPUT[button].value != 0,
+                )
 
     @classmethod
     def get_keyboard_kv_state(cls) -> int:
