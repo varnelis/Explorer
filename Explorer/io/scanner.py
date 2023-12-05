@@ -53,7 +53,7 @@ class Scanner:
 
         webbrowser.open(self._url)
         self._recorder.start()
-        while len(self._screen_bounding_box) < 2:
+        while len(self._screen_bounding_box) < 4:
             time.sleep(1)
         self._recorder.finish()
 
@@ -65,13 +65,27 @@ class Scanner:
             self._screen_bounding_box[1][1] - self.screen_origin[1]
         ) // self.height_step * self.height_step + 1
 
-        self.interactables_overlay = np.zeros((self.screen_width, self.screen_height))
+        self.url_popup_origin = self._screen_bounding_box[2]
+        self.url_popup_width = self._screen_bounding_box[3][0] - self.url_popup_origin[0]
+        self.url_popup_height = self._screen_bounding_box[3][1] - self.url_popup_origin[1]
 
         self.screen = self.take_screen_shot(
             (0, 0), self.screen_width, self.screen_height
         )
         if self.screen is None:
             raise RuntimeError("Unable to capture screen")
+        
+        self.url_popup = self.take_screen_shot(
+            (0, 0),
+            self.url_popup_width,
+            self.url_popup_height,
+            self.url_popup_origin
+        )
+        if self.url_popup is None:
+            raise RuntimeError("Unable to capture screen")
+        self.url_popup_active = False
+        
+        self.interactables_overlay = np.zeros((self.screen_width, self.screen_height))
 
         self._controller = Controller()
 
@@ -307,24 +321,49 @@ class Scanner:
         new_screen = self.take_screen_shot(
             (0, 0), self.screen_width, self.screen_height
         )
+        url_popup = self.take_screen_shot(
+            (0, 0), self.url_popup_width, self.url_popup_height,
+            self.url_popup_origin
+        )
+
         if new_screen is None:
             return 0
 
-        diff = ImageChops.difference(self.screen, new_screen).convert("L")
-        if diff.getextrema() != (0, 0):
+        screen_diff = ImageChops.difference(self.screen, new_screen).convert("L")
+        popup_exist = ImageChops.difference(self.url_popup, url_popup).convert("L").getextrema() != (0, 0)
+
+        if screen_diff.getextrema() != (0, 0):
+            self.url_popup_active = popup_exist
             return 1
-        else:
-            return -1
+        
+        if popup_exist is True:
+            if self.url_popup_active is False:
+                self.url_popup_active = True
+                return 1
+            time.sleep(1)
+
+            url_popup = self.take_screen_shot(
+                (0, 0), self.url_popup_width, self.url_popup_height,
+                self.url_popup_origin
+            )
+            popup_exist = ImageChops.difference(self.url_popup, url_popup).convert("L").getextrema() != (0, 0)
+            if popup_exist is True:
+                self.url_popup_active = True
+                return 1
+            
+        self.url_popup_active = False
+        return -1
 
     def take_screen_shot(
-        self, origin: tuple[int, int], w: int, h: int
+        self, local_origin: tuple[int, int], w: int, h: int,
+        global_origin: tuple[int, int] | None = None
     ) -> Image.Image | None:
         # TODO (Arnas): The splitting is required for macOS, because it returns RGBA
         #               Instead of RGB, so when diff is taken the alpha channel is
         #               always 0. Maybe we could convert the image to gray scale?
         #               I think in most cases we would still catch a diff.
-        x_s, y_s = self.screen_origin
-        x, y = origin
+        x_s, y_s = self.screen_origin if global_origin is None else global_origin
+        x, y = local_origin
         try:
             screen_shot = Image.merge(
                 "RGB",
