@@ -19,12 +19,13 @@ class Scanner:
     #   3.2. if there are changes, tries to identify the bounding box of the
     #        interactable
 
-    def __init__(self, url: str, prefix: str):
+    def __init__(self, url: str, prefix: str, response: float):
         self._url = url
         self.prefix = prefix
+        self.response_time = response
 
-        self.width_step = 50
-        self.height_step = 50
+        self.width_step = 30
+        self.height_step = 30
 
         self.width_space = 10
         self.height_space = 10
@@ -84,7 +85,7 @@ class Scanner:
         if key == Key.enter:
             self._activate = True
 
-    def scan(self, depth: int = None, active_depth: int = None, npass = 0):
+    def scan(self, depth: int = None, active_depth: int = None, npass=0):
         start = time.time()
 
         for i in range(
@@ -105,7 +106,6 @@ class Scanner:
                     active_d=active_depth,
                 )
 
-        
         for i in range(
             0,
             (self.screen_width // self.width_step) * self.width_step - 1,
@@ -118,7 +118,7 @@ class Scanner:
             ):
                 for _ in range(npass):
                     self.fill_area(
-                        (i, j), self.width_step + 1, self.height_step + 1, active_d = 0
+                        (i, j), self.width_step + 1, self.height_step + 1, active_d=0
                     )
 
         print(f"Time to scan: {time.time() - start}s")
@@ -159,7 +159,8 @@ class Scanner:
             return
 
         self.fill_area(
-            (x, y), w // 2 + 1,
+            (x, y),
+            w // 2 + 1,
             h // 2 + 1,
             cut_off_d,
             active_d,
@@ -196,11 +197,15 @@ class Scanner:
         # -----------------------------------------------------------------------------
         # Getting actual corners
         # -----------------------------------------------------------------------------
+        ul_c = (x, y)
+        ur_c = (x + w - 1, y)
+        ll_c = (x, y + h - 1)
+        lr_c = (x + w - 1, y + h - 1)
 
-        ul = self.check_pixel((x, y), active)
-        ur = self.check_pixel((x + w - 1, y), active)
-        ll = self.check_pixel((x, y + h - 1), active)
-        lr = self.check_pixel((x + w - 1, y + h - 1), active)
+        ul = self.check_pixel(ul_c, active)
+        ur = self.check_pixel(ur_c, active)
+        ll = self.check_pixel(ll_c, active)
+        lr = self.check_pixel(lr_c, active)
 
         # -----------------------------------------------------------------------------
         # setting positions and default values to unknown
@@ -298,7 +303,7 @@ class Scanner:
         self._controller.mouse_set_position(
             self.screen_origin[0] + x, self.screen_origin[1] + y
         )
-        time.sleep(0.01)
+        time.sleep(self.response_time)
         new_screen = self.take_screen_shot(
             (0, 0), self.screen_width, self.screen_height
         )
