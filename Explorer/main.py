@@ -29,10 +29,13 @@ def record() -> None:
 @click.argument("url")
 @click.option("--d", required=False, type=int, help="Scan depth limit")
 @click.option("--a", required=False, type=int, help="Active scan limit")
-@click.option("--npass", default = 0, type = int, help="Do n non-active passes")
-@click.option("--prefix", default = "", type = str, help="File prefix")
-def scan(url, d, a, npass, prefix) -> None:
-    scanner = Scanner(url, prefix = prefix)
+@click.option("--npass", default=0, type=int, help="Do n non-active passes")
+@click.option("--prefix", default="", type=str, help="File prefix")
+@click.option(
+    "--response", default=0.01, type=float, help="Interactables response time (s)"
+)
+def scan(url, d, a, npass, prefix, response) -> None:
+    scanner = Scanner(url, prefix=prefix, response=response)
     scanner.scan(d, a, npass)
 
 
