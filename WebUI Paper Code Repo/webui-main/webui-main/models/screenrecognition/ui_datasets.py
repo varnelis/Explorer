@@ -449,11 +449,15 @@ class WebUIDataset(torch.utils.data.Dataset):
             img_path = img_path.replace(self.computed_boxes_directory, self.rawdata_directory)
 
             key_filename = img_path.split("/")[-1]
-            key_filename = img_path.split("\\")[-1] # issues with combining Unix & Win path separators
+            #key_filename = img_path.split("\\")[-1] # issues with combining Unix & Win path separators
+            print('DEBUG ui_datasets 453 -- key_filename = ', key_filename)
+            
             device_name = "-".join(key_filename.split("-")[:-1])
-                        
-            with Image.open(img_path) as image:
-                img_pil = image.convert("RGB") # rewritten like this to close image after computation -> minimise memory use (avoid crash)
+            print('DEBUG ui_datasets 456 -- device_name = ', device_name)
+
+            img_pil = Image.open(img_path).convert("RGB")           
+            #with Image.open(img_path) as image:
+            #    img_pil = image.convert("RGB") # rewritten like this to close image after computation -> minimise memory use (avoid crash)
             img = self.img_transforms(img_pil)
             target = {}
             boxes = []
