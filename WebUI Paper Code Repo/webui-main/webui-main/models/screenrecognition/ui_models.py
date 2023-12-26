@@ -36,7 +36,7 @@ class UIElementDetector(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        print('val 1')
+        print(f'Validation {batch_idx}')
 
         images, targets = batch
         images = list(image for image in images)
@@ -80,7 +80,7 @@ class UIElementDetector(pl.LightningModule):
         return preds, gts
 
     def validation_epoch_end(self, outputs):
-        print('VAL EPOCH END.........')
+        #print('VAL EPOCH END.........')
 
         metric_fn = MetricBuilder.build_evaluation_metric("map_2d", async_mode=True, num_classes=self.hparams.num_classes)
         for batch_output in outputs:
