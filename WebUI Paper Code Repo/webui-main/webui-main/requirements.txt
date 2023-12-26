@@ -1,0 +1,13 @@
+pandas==1.5.3
+tqdm
+gdown
+botocore
+scikit-learn
+xmltodict
+mean_average_precision
+pytorch_revgrad
+tensorboard
+pytorch_lightning==1.9
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch
+torchvision
