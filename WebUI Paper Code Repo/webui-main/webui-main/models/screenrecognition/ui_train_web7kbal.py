@@ -34,7 +34,7 @@ if __name__ == "__main__":
 
     trainer = Trainer(
         gpus=1,
-        precision=16,
+        precision=32, # change to full-precision 32bit -- 16bit caused quantisation errors in val score calc (source: Jason Wu)
         gradient_clip_val=1.0,
         accumulate_grad_batches=2,
         callbacks=[checkpoint_callback, checkpoint_callback2, earlystopping_callback],

@@ -1,5 +1,10 @@
 import numpy as np
 # from torchmetrics.detection.mean_ap import MeanAveragePrecision
+
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+# suppress pandas FutureWarning for mean_average_precision
+
 from mean_average_precision import MetricBuilder
 import pytorch_lightning as pl
 import torch
