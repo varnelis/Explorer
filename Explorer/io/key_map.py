@@ -1,11 +1,8 @@
-from pynput import mouse, keyboard
-import time
-import numpy as np
-import os
-import pandas as pd
 from enum import IntEnum
+from pynput import mouse, keyboard
 
 AnyKey = keyboard.Key | keyboard.KeyCode | None
+AnyButton = mouse.Button
 # 68 bits reserved for special keys
 SPECIAL_KEYS_RESERVED = 68
 
@@ -88,13 +85,6 @@ class KeyboardState(IntEnum):
     RESERVED_7 = 0x80000000000000000
 
 
-MOUSE_MAP_PYNPUT: dict[mouse.Button, MouseState] = {
-    mouse.Button.unknown: MouseState.UNKNOWN,
-    mouse.Button.left: MouseState.LEFT,
-    mouse.Button.middle: MouseState.MIDDLE,
-    mouse.Button.right: MouseState.RIGHT,
-}
-
 KEYBOARD_MAP_PYNPUT: dict[keyboard.Key, KeyboardState] = {
     keyboard.Key.alt: KeyboardState.ALT,
     keyboard.Key.alt_l: KeyboardState.ALT_L,
@@ -159,6 +149,13 @@ KEYBOARD_MAP_PYNPUT: dict[keyboard.Key, KeyboardState] = {
     # keyboard.Key.scroll_lock: KeyboardState.SCROLL_LOCK,
 }
 
+MOUSE_MAP_PYNPUT: dict[mouse.Button, MouseState] = {
+    mouse.Button.unknown: MouseState.UNKNOWN,
+    mouse.Button.left: MouseState.LEFT,
+    mouse.Button.middle: MouseState.MIDDLE,
+    mouse.Button.right: MouseState.RIGHT,
+}
+
 
 def get_key_mask(key: AnyKey) -> int:
     if isinstance(key, keyboard.Key):
@@ -171,129 +168,3 @@ def get_key_mask(key: AnyKey) -> int:
         if id is not None:
             return id << SPECIAL_KEYS_RESERVED
     return KeyboardState.UNKNOWN.value
-
-
-class Recorder:
-    _path_to_file: str
-
-    _idx: int = 0
-    _data_limit: int = 1000
-    _data: np.ndarray
-
-    _start_time: float
-
-    _keyboard_state: int = 0x0
-    _mouse_state: int = 0x0
-    _last_mouse_pos: tuple[int, int] = (0, 0)
-
-    _running = False
-
-    def __init__(self) -> None:
-        Recorder._path_to_file = "./temp/capture_log.csv"
-
-        if not os.path.isdir("./temp"):
-            os.mkdir("./temp")
-        if os.path.isfile(Recorder._path_to_file):
-            os.remove(Recorder._path_to_file)
-
-        Recorder._idx = 0
-        Recorder._data_limit = 1000
-        Recorder._data = np.empty((Recorder._data_limit, 6), dtype=int)
-        Recorder._running = True
-
-    @classmethod
-    def new_position(cls, x: int, y: int) -> None:
-        cls._last_mouse_pos = (x, y)
-        elapsed_time = (time.time() - cls._start_time) * 1000
-        # numpy strugles to store big numbers, so we store alphanum and special chars
-        # seperatly.
-        cls._data[cls._idx % Recorder._data_limit] = [
-            elapsed_time,
-            x,
-            y,
-            cls._mouse_state,
-            cls._keyboard_state & ((1 << SPECIAL_KEYS_RESERVED) - 1),  # special chars
-            cls._keyboard_state >> SPECIAL_KEYS_RESERVED,  # alphanumericals
-        ]
-
-        cls._idx += 1
-        if cls._idx % Recorder._data_limit == 0:
-            cls.save_data()
-
-    @classmethod
-    def new_mouse_action(cls, x: int, y: int, button: mouse.Button) -> None:
-        cls._mouse_state = cls._mouse_state ^ MOUSE_MAP_PYNPUT[button].value
-        cls.new_position(x, y)
-
-    @classmethod
-    def new_keyboard_action(cls, key: AnyKey) -> None:
-        cls._keyboard_state = cls._keyboard_state ^ get_key_mask(key)
-        cls.new_position(cls._last_mouse_pos[0], cls._last_mouse_pos[1])
-
-    @classmethod
-    def start(cls) -> None:
-        Recorder._start_time = time.time()
-
-    @classmethod
-    def finish(cls) -> None:
-        cls._running = False
-        cls.save_data()
-
-    @classmethod
-    def save_data(cls) -> None:
-        df = pd.DataFrame(
-            cls._data[: ((cls._idx - 1) % cls._data_limit) + 1],
-            columns=["time(ms)", "x", "y", "mouse_state", "special_keys", "vk"],
-            index=list(
-                range(
-                    ((cls._idx - 1) // cls._data_limit) * cls._data_limit, cls._idx, 1
-                )
-            ),
-        )
-        df.to_csv(
-            cls._path_to_file,
-            sep=",",
-            mode="a",
-            header=not os.path.exists(cls._path_to_file),
-        )
-
-    @classmethod
-    def schedule_to_stop(cls) -> None:
-        cls._running = False
-
-    @classmethod
-    def is_running(cls) -> bool:
-        return cls._running
-
-
-def on_move(x: int, y: int) -> None:
-    Recorder.new_position(x, y)
-
-
-def on_click(x: int, y: int, button: mouse.Button, _: bool) -> bool:
-    Recorder.new_mouse_action(x, y, button)
-    return True
-
-
-def on_press(key: keyboard.Key) -> None:
-    Recorder.new_keyboard_action(key)
-    if key == keyboard.Key.esc:
-        Recorder.schedule_to_stop()
-
-
-def on_release(key: keyboard.Key) -> None:
-    Recorder.new_keyboard_action(key)
-    pass
-
-
-def record_input():
-    recorder = Recorder()
-    mouse_listener = mouse.Listener(on_move=on_move, on_click=on_click)
-    keyboard_listener = keyboard.Listener(on_press, on_release)
-
-    recorder.start()
-    mouse_listener.start()
-    keyboard_listener.start()
-    while recorder.is_running():
-        time.sleep(1)
-    recorder.finish()
