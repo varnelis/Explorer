@@ -21,54 +21,55 @@ class Scanner:
     #   3.2. if there are changes, tries to identify the bounding box of the
     #        interactable
 
-    def __init__(self, url: str, prefix: str, response: float):
+    def __init__(
+        self,
+        url: str,
+        prefix: str,
+        response: float,
+        mode: str = "manual",
+        screen_origin: tuple[int, int] | None = None,
+        screen_width: int | None = None,
+        screen_height: int | None = None,
+        url_popup_origin: tuple[int, int] | None = None,
+        url_popup_width: int | None = None,
+        url_popup_height: int | None = None,
+    ):
+        self.mode = mode
         self._url = url
         self.prefix = prefix
-        self.response_time = response
 
+        self.response_time = response
         self.width_step = 30
         self.height_step = 30
-
         self.width_space = 10
         self.height_space = 10
 
         Recorder.record_data = False
         self._recorder = Recorder()
-
         self._controller: Controller | None = None
 
         self._updater = IOState()
         self._updater.attach_updater(self.on_click, "mouse_state")
         self._updater.attach_updater(self.on_press, "keyboard_state")
 
+        self.screen_origin = screen_origin
+        self.screen_width = screen_width
+        self.screen_height = screen_height
+        self.url_popup_origin = url_popup_origin
+        self.url_popup_width = url_popup_width
+        self.url_popup_height = url_popup_height
+        self.screen: Image.Image | None = None
+        self.interactables_overlay: np.NDArray | None = None
+        self.bbox = []
         self.__init_screen()
 
     def __init_screen(self):
-        self.screen_origin: tuple[int, int] | None = None
-        self.screen_width: int | None = None
-        self.screen_height: int | None = None
-        self.screen: Image.Image | None = None
-        self.interactables_overlay: np.NDArray | None = None
-
-        self._activate = False
-        self._screen_bounding_box: list[tuple[int, int]] = []
-
         webbrowser.open(self._url)
-        self._recorder.start()
-        while len(self._screen_bounding_box) < 4:
-            time.sleep(1)
-        self._recorder.finish()
-        self.screen_origin = self._screen_bounding_box[0]
-        self.screen_width = (
-            self._screen_bounding_box[1][0] - self.screen_origin[0]
-        ) // self.width_step * self.width_step + 1
-        self.screen_height = (
-            self._screen_bounding_box[1][1] - self.screen_origin[1]
-        ) // self.height_step * self.height_step + 1
 
-        self.url_popup_origin = self._screen_bounding_box[2]
-        self.url_popup_width = self._screen_bounding_box[3][0] - self.url_popup_origin[0]
-        self.url_popup_height = self._screen_bounding_box[3][1] - self.url_popup_origin[1]
+        if self.mode == "manual":
+            self.get_screen_dimensions()
+        else:
+            time.sleep(10)
 
         self.screen = self.take_screen_shot(
             (0, 0), self.screen_width, self.screen_height
@@ -89,8 +90,36 @@ class Scanner:
         self.interactables_overlay = np.zeros((self.screen_width, self.screen_height))
         self.interactables_bb_overlay = Image.new("L", (self.screen_width, self.screen_height), "white")
         self.interactable_groups = defaultdict(list)
+        self.bbox = []
 
-        self._controller = Controller()
+        if self._controller is None:
+            self._controller = Controller()
+    
+    def load_next_url(self, url: str, prefix: str):
+        self._url = url
+        self.prefix = prefix
+        self.__init_screen()
+    
+    def get_screen_dimensions(self):
+        self._screen_bounding_box: list[tuple[int, int]] = []
+        self._activate = False
+
+        self._recorder.start()
+        while len(self._screen_bounding_box) < 4:
+            time.sleep(1)
+        self._recorder.finish()
+
+        self.screen_origin = self._screen_bounding_box[0]
+        self.screen_width = (
+            self._screen_bounding_box[1][0] - self.screen_origin[0]
+        ) // self.width_step * self.width_step + 1
+        self.screen_height = (
+            self._screen_bounding_box[1][1] - self.screen_origin[1]
+        ) // self.height_step * self.height_step + 1
+
+        self.url_popup_origin = self._screen_bounding_box[2]
+        self.url_popup_width = self._screen_bounding_box[3][0] - self.url_popup_origin[0]
+        self.url_popup_height = self._screen_bounding_box[3][1] - self.url_popup_origin[1]
 
     def on_click(
         self, pos: tuple[float, float], button: AnyButton, press: bool
@@ -126,10 +155,10 @@ class Scanner:
         
         print(f"Time to scan: {time.time() - start}s")
 
-        self.bound_groups(active_depth)
+        self.bound_groups()
         self.show_with_overlay()
     
-    def bound_groups(self, active_depth: int):
+    def bound_groups(self):
         draw_on_image = ImageDraw.Draw(self.interactables_bb_overlay)
         for g, p in self.interactable_groups.items():
             top, bottom, left, right = p[0][1], p[0][1], p[0][0], p[0][0]
@@ -144,16 +173,7 @@ class Scanner:
                     bottom = y_i
                 elif y_i < top:
                     top = y_i
-            draw_on_image.rectangle(
-                (
-                    left - self.width_step // (2 * (active_depth + 2)),
-                    top - self.height_step // (2 * (active_depth + 2)),
-                    right + self.width_step // (2 * (active_depth + 2)),
-                    bottom + self.height_step // (2 * (active_depth + 2))
-                ),
-                outline = "black",
-                width = 2
-            )
+            self.bbox.append([top, bottom, left, right])
             draw_on_image.rectangle(
                 (
                     left,
@@ -169,8 +189,10 @@ class Scanner:
         overlay = Image.fromarray(
             (self.interactables_overlay.transpose() + 1) * 120
         ).convert("L")
-        overlay.show()
-        self.interactables_bb_overlay.show()
+
+        if self.mode == "manual":
+            overlay.show()
+            self.interactables_bb_overlay.show()
 
         scatter_overlay = ImageOps.colorize(overlay, black="white", white="red")
         bb_overlay = ImageOps.colorize(self.interactables_bb_overlay, black="black", white="white")
@@ -184,6 +206,9 @@ class Scanner:
         bb_composite.save(f"temp/{self.prefix}_bb_composite.png")
         common_composite.save(f"temp/{self.prefix}_common_composite.png")
         self.screen.save(f"temp/{self.prefix}_screen.png")
+
+        with open(f"temp/bb_data.json", "+a") as f:
+            f.write(f"""{{"source":"{self._url}", "bbox":{self.bbox}, "screen":"temp/{self.prefix}_screen.png" }},\n""")
 
     def fill_area(
         self,
@@ -348,13 +373,15 @@ class Scanner:
         return current_state
 
     def is_pixel_interactable(self, x: int, y: int) -> int:
+        self._controller.mouse_set_position(self.screen_origin[0], self.screen_origin[1])
+        time.sleep(0.1)
         self._controller.mouse_set_position(
             self.screen_origin[0] + x, self.screen_origin[1] + y
         )
-        time.sleep(self.response_time)
         new_screen = self.take_screen_shot(
             (0, 0), self.screen_width, self.screen_height
         )
+        time.sleep(self.response_time)
         url_popup = self.take_screen_shot(
             (0, 0), self.url_popup_width, self.url_popup_height,
             self.url_popup_origin

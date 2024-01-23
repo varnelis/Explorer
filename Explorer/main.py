@@ -39,6 +39,35 @@ def scan(url, d, a, npass, prefix, response) -> None:
     scanner = Scanner(url, prefix=prefix, response=response)
     scanner.scan(d, a, npass)
 
+@click.command()
+@click.argument("source")
+@click.argument("url")
+@click.option("--d", required=False, type=int, help="Scan depth limit")
+@click.option("--a", required=False, type=int, help="Active scan limit")
+@click.option(
+    "--response", default=0.01, type=float, help="Interactables response time (s)"
+)
+def scan_bulk(source: str, url: str, d, a, response) -> None:
+    uris = []
+    with open(source, "r") as f:
+        uris = [line[:-1] for line in f]
+
+    scanner = Scanner(
+        url = url + uris[0],
+        prefix = uris[0].replace("/", "-"),
+        response = response,
+        mode = "bulk",
+        screen_origin = (1119, 300),
+        screen_width = 100,
+        screen_height = 301,
+        url_popup_origin = (1337, 587),
+        url_popup_width = 10,
+        url_popup_height = 10
+    )
+    scanner.scan(d, a)
+    for u in uris[1:]:
+        scanner.load_next_url(url + u, prefix=u.replace("/", "-"))
+        scanner.scan(d, a)
 
 @click.command()
 def scrape() -> None:
@@ -60,6 +89,7 @@ def visualise() -> None:
 main.add_command(hello_world)
 main.add_command(record)
 main.add_command(scan)
+main.add_command(scan_bulk)
 main.add_command(scrape)
 main.add_command(scrape_info)
 main.add_command(visualise)
