@@ -1,8 +1,9 @@
 import click
 from Explorer.io.recorder import Recorder
 from Explorer.io.scanner import Scanner
+from Explorer.io.scrapper import Scrapper, count_profiles, first_level_uris, most_referenced, most_referenced_first_level_uris, show_graph
 import time
-
+import cProfile
 
 @click.group()
 def main() -> None:
@@ -39,9 +40,29 @@ def scan(url, d, a, npass, prefix, response) -> None:
     scanner.scan(d, a, npass)
 
 
+@click.command()
+def scrape() -> None:
+    crawler = Scrapper("https://www.khanacademy.org")
+    crawler.start("/")
+
+@click.command()
+def scrape_info() -> None:
+    count_profiles()
+    first_level_uris()
+    most_referenced()
+    most_referenced_first_level_uris()
+
+@click.command()
+def visualise() -> None:
+    show_graph()
+
+
 main.add_command(hello_world)
 main.add_command(record)
 main.add_command(scan)
+main.add_command(scrape)
+main.add_command(scrape_info)
+main.add_command(visualise)
 
 if __name__ == "__main__":
     main()
