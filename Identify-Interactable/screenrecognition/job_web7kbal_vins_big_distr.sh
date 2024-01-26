@@ -11,4 +11,4 @@ module load python/anaconda3
 
 source activate webui
 
-python ui_train_web7kbal-vins_distributed.py
+python ui_train_finetune_web7kbal-vins_distributed.py
