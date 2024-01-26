@@ -1,0 +1,139 @@
+import os
+import json
+from PIL import Image
+import torch
+import torch.nn.functional as F
+from torchvision import transforms
+import pytorch_lightning as pl
+
+
+class KhanUIDataset(torch.utils.data.Dataset):
+    def __init__(
+        self,
+        root="../../downloads/khan/screenshots",
+        class_dict_path="../../metadata/screenrecognition/class_map_khan_manual.json",
+        id_list_path="../../metadata/screenrecognition/train_ids_khan.json",
+    ):
+        with open(id_list_path, "r") as f:
+            self.id_list = json.load(f)
+
+        self.root = root
+        self.img_transforms = transforms.ToTensor()
+
+        with open(class_dict_path, "r") as f:
+            class_dict = json.load(f)
+
+        self.idx2Label = class_dict["idx2Label"]
+        self.label2Idx = class_dict["label2Idx"]
+
+    def __len__(self):
+        return len(self.id_list)
+
+    def __getitem__(self, idx):
+        def return_next():  # for debugging
+            return KhanUIDataset.__getitem__(self, idx + 1)
+
+        try:
+            img_path = os.path.join(self.root, self.id_list[idx])
+
+            pil_img = Image.open(img_path).convert("RGB")
+            img = self.img_transforms(pil_img)
+
+            # get annotations dictionary with bboxes
+            with open(
+                img_path.replace(".jpg", ".json").replace("screenshots", "annotations"),
+                "r",
+            ) as root_file:
+                annotations = root_file.read()
+
+            # get bounding box coordinates for each mask
+            boxes = annotations["clickable"]  # list of lists output
+            labels = [self.label2Idx["clickable"]] * len(boxes)
+
+            # convert everything into a torch.Tensor
+            boxes = torch.as_tensor(boxes, dtype=torch.float32)
+            labels = torch.tensor(labels, dtype=torch.long)
+            image_id = torch.tensor([idx])
+            area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
+            # suppose all instances are not crowd
+            # iscrowd = torch.zeros((num_labels,), dtype=torch.int64)
+
+            target = {}
+            target["boxes"] = boxes
+            target["labels"] = labels
+            target["image_id"] = image_id
+            target["area"] = area
+
+            return img, target
+
+        except Exception as e:
+            print("failed", idx, self.id_list[idx], str(e))
+            return return_next()
+
+
+class KhanUIOneHotLabelDataset(KhanUIDataset):
+    def __getitem__(self, idx):
+        img, res_dict = super(KhanUIOneHotLabelDataset, self).__getitem__(idx)
+        num_classes = 2
+        one_hot_labels = F.one_hot(res_dict["labels"], num_classes=num_classes)
+        res_dict["labels"] = one_hot_labels
+        return img, res_dict
+
+
+# https://github.com/pytorch/vision/blob/5985504cc32011fbd4312600b4492d8ae0dd13b4/references/detection/utils.py#L203
+def collate_fn(batch):
+    return tuple(zip(*batch))
+
+
+class KhanUIDataModule(pl.LightningDataModule):
+    def __init__(self, batch_size=32, num_workers=2, one_hot_labels=True):
+        super(KhanUIDataModule, self).__init__()
+        self.batch_size = batch_size
+        self.num_workers = num_workers
+
+        if one_hot_labels:
+            self.train_dataset = KhanUIOneHotLabelDataset(
+                id_list_path="../../metadata/screenrecognition/train_ids_khan.json"
+            )
+            self.val_dataset = KhanUIOneHotLabelDataset(
+                id_list_path="../../metadata/screenrecognition/val_ids_khan.json"
+            )
+            self.test_dataset = KhanUIOneHotLabelDataset(
+                id_list_path="../../metadata/screenrecognition/test_ids_khan.json"
+            )
+        else:
+            self.train_dataset = KhanUIDataset(
+                id_list_path="../../metadata/screenrecognition/train_ids_khan.json"
+            )
+            self.val_dataset = KhanUIDataset(
+                id_list_path="../../metadata/screenrecognition/val_ids_khan.json"
+            )
+            self.test_dataset = KhanUIDataset(
+                id_list_path="../../metadata/screenrecognition/test_ids_khan.json"
+            )
+
+    def train_dataloader(self):
+        return torch.utils.data.DataLoader(
+            self.train_dataset,
+            collate_fn=collate_fn,
+            num_workers=self.num_workers,
+            batch_size=self.batch_size,
+            shuffle=True,
+        )
+
+    def val_dataloader(self):
+        return torch.utils.data.DataLoader(
+            self.val_dataset,
+            collate_fn=collate_fn,
+            num_workers=self.num_workers,
+            batch_size=self.batch_size,
+        )
+
+    def test_dataloader(self):
+        return torch.utils.data.DataLoader(
+            self.test_dataset,
+            collate_fn=collate_fn,
+            num_workers=self.num_workers,
+            batch_size=self.batch_size,
+            drop_last=True,
+        )
