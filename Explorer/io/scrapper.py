@@ -211,8 +211,10 @@ def first_level_uris():
     g = ig.load("./khan-academy.gml")
     uri_template = re.compile("\/[\w\-]*[\/\?]*")
     uris = defaultdict(int)
+    total_count = 0
 
     for v in g.vs:
+        total_count += 1
         name = v["name"]
         match = uri_template.match(name)
         if match is not None:
@@ -220,7 +222,7 @@ def first_level_uris():
         
     print("First level uris:")
     for k, v in sorted(uris.items(), key = lambda x: x[1]):
-        print(f"\t'{k}': {v}")
+        print(f"\t'{k}': {v}, {v/total_count * 100}%")
     print()
 
 class PopularityStack:
@@ -271,3 +273,25 @@ def most_referenced_first_level_uris():
     print("Most referenced first-level links:")
     for l in popular_links.stack:
         print(f"\t'{l[0]}': {l[1]}")
+
+def generate_scanning_links():
+    g = ig.load("./khan-academy.gml")
+    uri_template = re.compile("(\/[\w\-]*)[\/\?]*")
+    uris = {}
+    uris["total"] = 0
+
+    for v in g.vs:
+        uris["total"] += 1
+        name = v["name"]
+        raw_match = uri_template.match(name)
+        if raw_match is None:
+            continue
+        match = raw_match.group(1)
+        if match not in uris:
+            uris[match] = {}
+            uris[match]["links"] = []
+            uris[match]["count"] = 0
+        uris[match]["links"].append(name)
+        uris[match]["count"] += 1
+        
+    return uris

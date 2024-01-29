@@ -1,9 +1,13 @@
+import random
 import click
 from Explorer.io.recorder import Recorder
 from Explorer.io.scanner import Scanner
-from Explorer.io.scrapper import Scrapper, count_profiles, first_level_uris, most_referenced, most_referenced_first_level_uris, show_graph
+from Explorer.io.scrapper import Scrapper, count_profiles, first_level_uris, generate_scanning_links, most_referenced, most_referenced_first_level_uris, show_graph
 import time
 import cProfile
+import json
+
+from Explorer.io.selenium_scanner import SeleniumScanner
 
 @click.group()
 def main() -> None:
@@ -68,6 +72,29 @@ def scan_bulk(source: str, url: str, d, a, response) -> None:
     for u in uris[1:]:
         scanner.load_next_url(url + u, prefix=u.replace("/", "-"))
         scanner.scan(d, a)
+    
+@click.command()
+@click.argument("url")
+def selenium_scan(url) -> None:
+    SeleniumScanner.setup_driver()
+    SeleniumScanner.load_url(url)
+    SeleniumScanner.load_screenshot()
+    SeleniumScanner.load_bbox()
+    SeleniumScanner.draw_bbox()
+
+
+@click.command()
+def bulk_selenium_scan() -> None:
+    with open("./scanning_links.json", "r") as f:
+        links = json.load(f)
+
+    SeleniumScanner.setup_driver()
+    for l in random.choices(links["/math"]["links"], k = 20):
+        print(f"Loading: {'https://www.khanacademy.org' + l}")
+        SeleniumScanner.load_url("https://www.khanacademy.org" + l)
+        SeleniumScanner.load_screenshot()
+        SeleniumScanner.load_bbox()
+        SeleniumScanner.draw_bbox()
 
 @click.command()
 def scrape() -> None:
@@ -82,6 +109,12 @@ def scrape_info() -> None:
     most_referenced_first_level_uris()
 
 @click.command()
+def generate_scanning_json() -> None:
+    links = generate_scanning_links()
+    with open("./scanning_links.json", "w") as f:
+        json.dump(links, f)
+
+@click.command()
 def visualise() -> None:
     show_graph()
 
@@ -89,9 +122,12 @@ def visualise() -> None:
 main.add_command(hello_world)
 main.add_command(record)
 main.add_command(scan)
+main.add_command(selenium_scan)
+main.add_command(bulk_selenium_scan)
 main.add_command(scan_bulk)
 main.add_command(scrape)
 main.add_command(scrape_info)
+main.add_command(generate_scanning_json)
 main.add_command(visualise)
 
 if __name__ == "__main__":
