@@ -165,3 +165,4 @@ temp/
 *.png
 *.json
 .DS_Store
+*.csv
