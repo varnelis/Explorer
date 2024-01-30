@@ -1,3 +1,5 @@
+from collections import defaultdict
+import csv
 import random
 import click
 from Explorer.io.recorder import Recorder
@@ -76,25 +78,38 @@ def scan_bulk(source: str, url: str, d, a, response) -> None:
 @click.command()
 @click.argument("url")
 def selenium_scan(url) -> None:
+    SeleniumScanner.prepare_directories()
     SeleniumScanner.setup_driver()
     SeleniumScanner.load_url(url)
     SeleniumScanner.load_screenshot()
     SeleniumScanner.load_bbox()
     SeleniumScanner.draw_bbox()
+    SeleniumScanner.save_scan()
 
 
 @click.command()
-def bulk_selenium_scan() -> None:
-    with open("./scanning_links.json", "r") as f:
-        links = json.load(f)
+@click.option("--g", required=True, type=int, help="Group number")
+def bulk_selenium_scan(g) -> None:
+    SeleniumScanner.prepare_directories()
+
+    with open("./scanning_links_allocations.json", "r") as f:
+        links_to_scan = json.load(f)
+
+    with open("./selenium_scans/metadata/visited_list.csv", "r") as f:
+        csv_reader = csv.DictReader(f)
+        scanned_links = {line["url"]: line["uuid"] for line in csv_reader}
 
     SeleniumScanner.setup_driver()
-    for l in random.choices(links["/math"]["links"], k = 20):
-        print(f"Loading: {'https://www.khanacademy.org' + l}")
-        SeleniumScanner.load_url("https://www.khanacademy.org" + l)
+    for link in links_to_scan[str(g)]:
+        if link in scanned_links:
+            continue
+
+        SeleniumScanner.load_url(link)
         SeleniumScanner.load_screenshot()
         SeleniumScanner.load_bbox()
         SeleniumScanner.draw_bbox()
+        SeleniumScanner.save_scan()
+        scanned_links["link"] = SeleniumScanner.current_uuid.hex
 
 @click.command()
 def scrape() -> None:
@@ -109,10 +124,25 @@ def scrape_info() -> None:
     most_referenced_first_level_uris()
 
 @click.command()
-def generate_scanning_json() -> None:
+@click.option("--s", required=True, type=int, help="Random number generator seed")
+@click.option("--n", required=True, type=int, help="Number of links to scan")
+@click.option("--g", required=True, type=int, help="Groups to allocate")
+def generate_scanning_json(s, n, g) -> None:
+    random.seed(s)
+    
     links = generate_scanning_links()
-    with open("./scanning_links.json", "w") as f:
-        json.dump(links, f)
+    total_links = links["total"]
+    allocations = defaultdict(list)
+
+    for k in links.keys():
+        if k == "total":
+            continue
+        group = int(random.random() * g)
+        for link in links[k]["links"][:max(1, int(links[k]["count"] / total_links * n))]:
+            allocations[group].append(link)
+
+    with open("./scanning_links_allocations.json", "w") as f:
+        json.dump(allocations, f)
 
 @click.command()
 def visualise() -> None:
