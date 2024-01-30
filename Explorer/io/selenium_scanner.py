@@ -226,7 +226,7 @@ class SeleniumScanner:
     @classmethod
     def bound_bbox_by_parents(cls):
         active_mask = []
-        pb = tqdm(total = len(cls.bbox))
+        pb = tqdm(total = len(cls.bbox), position = 1)
         for i, e in enumerate(cls.bbox):
             element = e[-1]
             left, top, right, bottom = e[:4]
