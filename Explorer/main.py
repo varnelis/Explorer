@@ -2,6 +2,7 @@ from collections import defaultdict
 import csv
 import random
 import click
+from tqdm import tqdm
 from Explorer.io.recorder import Recorder
 from Explorer.io.scanner import Scanner
 from Explorer.io.scrapper import Scrapper, count_profiles, first_level_uris, generate_scanning_links, most_referenced, most_referenced_first_level_uris, show_graph
@@ -99,9 +100,11 @@ def bulk_selenium_scan(g) -> None:
         csv_reader = csv.DictReader(f)
         scanned_links = {line["url"]: line["uuid"] for line in csv_reader}
 
+    pb = tqdm(total = len(links_to_scan[str(g)]), position = 0)
     SeleniumScanner.setup_driver()
     for link in links_to_scan[str(g)]:
         if link in scanned_links:
+            pb.update(1)
             continue
 
         SeleniumScanner.load_url(link)
@@ -110,6 +113,7 @@ def bulk_selenium_scan(g) -> None:
         SeleniumScanner.draw_bbox()
         SeleniumScanner.save_scan()
         scanned_links["link"] = SeleniumScanner.current_uuid.hex
+        pb.update(1)
 
 @click.command()
 def scrape() -> None:
@@ -137,8 +141,15 @@ def generate_scanning_json(s, n, g) -> None:
     for k in links.keys():
         if k == "total":
             continue
-        group = int(random.random() * g)
-        for link in links[k]["links"][:max(1, int(links[k]["count"] / total_links * n))]:
+
+        n_links_to_allocate = max(1, int(links[k]["count"] / total_links * n))
+        if k == "/login":
+            n_links_to_allocate = 1
+
+        random_links = random.choices(links[k]["links"], k = n_links_to_allocate)
+
+        for link in random_links:
+            group = int(random.random() * g)
             allocations[group].append(link)
 
     with open("./scanning_links_allocations.json", "w") as f:
