@@ -163,3 +163,5 @@ cython_debug/
 temp/
 *.gml
 *.png
+*.json
+.DS_Store
