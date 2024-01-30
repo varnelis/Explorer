@@ -291,7 +291,7 @@ def generate_scanning_links():
             uris[match] = {}
             uris[match]["links"] = []
             uris[match]["count"] = 0
-        uris[match]["links"].append(name)
+        uris[match]["links"].append("https://khanacademy.org" + name)
         uris[match]["count"] += 1
         
     return uris
