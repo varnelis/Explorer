@@ -158,28 +158,27 @@ def generate_scanning_json(s, n, g) -> None:
 def generate_splits():
     with open("./selenium_scans/metadata/visited_list.csv", "r") as f:
         csv_reader = csv.DictReader(f)
-        links = [(line["url"], line["uuid"]) for line in csv_reader]
+        links = {line["url"]: line["uuid"] for line in csv_reader}
     split = [0.8, 0.1, 0.1]
     total_links = len(links)
-    training = random.choices(links, k = int(split[0] * total_links))
+    training = random.sample([(url, uuid) for url, uuid in links.items()], k = int(split[0] * total_links))
     for t in training:
-        links.remove(t)
-    testing = random.choices(links, k = int(split[1] * total_links))
+        links.pop(t[0])
+    testing = random.sample([(url, uuid) for url, uuid in links.items()], k = int(split[1] * total_links))
     for t in testing:
-        links.remove(t)
-    validation = links
-    with open("./selenium_scans/metadata/training.josn", "w") as f:
-        data = {}
+        links.pop(t[0])
+    validation = [(url, uuid) for url, uuid in links.items()]
+    
+    data = {}
+    with open("./selenium_scans/metadata/training.json", "w") as f:
         data["items"] = [{"url": url, "uuid": uuid} for url, uuid in training]
-        json.dump(data)
-    with open("./selenium_scans/metadata/testing.josn", "w") as f:
-        data = {}
+        json.dump(data, f)
+    with open("./selenium_scans/metadata/testing.json", "w") as f:
         data["items"] = [{"url": url, "uuid": uuid} for url, uuid in testing]
-        json.dump(data)
-    with open("./selenium_scans/metadata/validation.josn", "w") as f:
-        data = {}
+        json.dump(data, f)
+    with open("./selenium_scans/metadata/validation.json", "w") as f:
         data["items"] = [{"url": url, "uuid": uuid} for url, uuid in validation]
-        json.dump(data)
+        json.dump(data, f)
 
 
 @click.command()
