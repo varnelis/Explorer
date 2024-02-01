@@ -78,21 +78,25 @@ def scan_bulk(source: str, url: str, d, a, response) -> None:
     
 @click.command()
 @click.argument("url")
-@click.option("--s", required=True, type=float, help="Scale factor for screen resolution")
-def selenium_scan(url, s) -> None:
+@click.option("--scale", required=True, type=float, help="Scale factor")
+def selenium_scan(url, scale) -> None:
     SeleniumScanner.prepare_directories()
-    SeleniumScanner.setup_driver()
+    SeleniumScanner.setup_driver(scale)
     SeleniumScanner.load_url(url)
     SeleniumScanner.load_screenshot()
-    SeleniumScanner.load_bbox(s)
+    SeleniumScanner.load_bbox()
     SeleniumScanner.draw_bbox()
     SeleniumScanner.save_scan()
 
 
 @click.command()
 @click.option("--g", required=True, type=int, help="Group number")
-@click.option("--s", required=True, type=float, help="Scale factor for screen resolution")
-def bulk_selenium_scan(g, s) -> None:
+@click.option("--scale", required=True, type=float, help="Scale factor")
+@click.option("--scroll", required=True, type=bool, help="Scroll page")
+@click.option(
+    "--ep", required=True, type=float, help="Button expand probability"
+)
+def bulk_selenium_scan(g, scale, scroll, ep) -> None:
     SeleniumScanner.prepare_directories()
 
     with open("./scanning_links_allocations.json", "r") as f:
@@ -103,29 +107,41 @@ def bulk_selenium_scan(g, s) -> None:
         scanned_links = {line["url"]: line["uuid"] for line in csv_reader}
 
     pb = tqdm(total = len(links_to_scan[str(g)]), position = 0)
-    SeleniumScanner.setup_driver()
+    SeleniumScanner.setup_driver(scale)
     for link in links_to_scan[str(g)]:
         if link in scanned_links:
             pb.update(1)
             continue
         
-        #try:
-        SeleniumScanner.load_url(link, scroll=True, click_rand_button_p=0.5)
+        SeleniumScanner.load_url(link)
+
+        if ep > 0:
+            SeleniumScanner.expand_button(ep)
         SeleniumScanner.load_screenshot()
         SeleniumScanner.load_bbox()
-        SeleniumScanner.draw_bbox(s)
+        SeleniumScanner.draw_bbox()
         SeleniumScanner.save_scan()
+        
+        if scroll is True:
+            old_height = SeleniumScanner.get_page_height()
+            end_of_page = False
+            while end_of_page is False:
+                new_height = SeleniumScanner.scroll_page()
+                
+                if ep > 0:
+                    SeleniumScanner.expand_button(ep)
+                SeleniumScanner.load_screenshot()
+                SeleniumScanner.load_bbox()
+                SeleniumScanner.draw_bbox()
+                SeleniumScanner.save_scan()
+                
+                if new_height == old_height:
+                    end_of_page = True
+                else:
+                    old_height = new_height
+
         scanned_links["link"] = SeleniumScanner.current_uuid.hex
         pb.update(1)
-        #except:
-        #    print(f'Exception... retrying link {link}')
-        #    SeleniumScanner.load_url(link, scroll=True, click_rand_button=0.5)
-        #    SeleniumScanner.load_screenshot()
-        #    SeleniumScanner.load_bbox()
-        #    SeleniumScanner.draw_bbox()
-        #    SeleniumScanner.save_scan()
-        #    scanned_links["link"] = SeleniumScanner.current_uuid.hex
-        #    pb.update(1)
 
 @click.command()
 def scrape() -> None:

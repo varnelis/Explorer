@@ -9,7 +9,9 @@ from uuid import UUID, uuid4
 from selenium import webdriver
 from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.common.action_chains import ActionChains as Action
 
 from selenium.common.exceptions import ElementClickInterceptedException
 
@@ -26,6 +28,7 @@ class SeleniumScanner:
     current_screen: Image.Image | None = None
     dir = "./selenium_scans/"
     bbox: list[tuple[int, int, int, int, WebElement]] = []
+    scale_factor: int | None = None
 
     @classmethod
     def prepare_directories(cls):
@@ -51,11 +54,12 @@ class SeleniumScanner:
             os.mkdir(dir + "screenshots")
 
     @classmethod
-    def setup_driver(cls):
+    def setup_driver(cls, scale_factor):
         cls.driver = webdriver.Chrome()
+        cls.scale_factor = scale_factor
 
     @classmethod
-    def load_url(cls, url: str, scroll: bool = False, click_rand_button_p: float = 0.0):
+    def load_url(cls, url: str):
         cls.current_screen = None
         cls.bbox = []
 
@@ -64,17 +68,11 @@ class SeleniumScanner:
         cls.driver.get(url)
         cls.viewport = cls.driver.get_window_size()
 
-        if scroll is True:
-            cls.scroll_page()
-        cls.expand_button(click_rand_button_p)
-
     @classmethod
     def scroll_page(cls):
-        rand_scroll_pos = random.random()
-        print(rand_scroll_pos)
-        cls.driver.execute_script(
-            f"window.scrollTo(0, document.body.scrollHeight * {rand_scroll_pos});"
-        )
+        Action(cls.driver).send_keys(Keys.PAGE_DOWN).perform()
+        new_height = cls.driver.execute_script("return document.body.scrollHeight")
+        return new_height
 
     @classmethod
     def expand_button(cls, click_rand_button_p):
@@ -88,11 +86,14 @@ class SeleniumScanner:
                 random.randint(0, len(expandable_buttons) - 1)
             ]
             try:
-                print("Expanding random button...")
                 rand_button.click()
-            except ElementClickInterceptedException:
+            except:# ElementClickInterceptedException:
                 # Element not interactable
                 return 0
+            
+    @classmethod
+    def get_page_height(cls):
+        return cls.driver.execute_script("return document.body.scrollHeight")
 
     @classmethod
     def load_screenshot(cls):
@@ -136,13 +137,13 @@ class SeleniumScanner:
         cls.bbox.sort(key=lambda x: x[1])
 
     @classmethod
-    def draw_bbox(cls, scale_factor):
+    def draw_bbox(cls):
         if len(cls.bbox) == 0 or cls.current_screen is None:
             return
 
         draw_bbox = ImageDraw.Draw(cls.current_screen)
         for i, bbox in enumerate(cls.bbox):
-            scaled_bbox = [e * scale_factor for e in bbox[:4]]
+            scaled_bbox = [e * cls.scale_factor for e in bbox[:4]]
             draw_bbox.rectangle(scaled_bbox, outline="black", width=3)
 
     @classmethod
