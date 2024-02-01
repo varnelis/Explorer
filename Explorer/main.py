@@ -78,19 +78,21 @@ def scan_bulk(source: str, url: str, d, a, response) -> None:
     
 @click.command()
 @click.argument("url")
-def selenium_scan(url) -> None:
+@click.option("--s", required=True, type=float, help="Scale factor for screen resolution")
+def selenium_scan(url, s) -> None:
     SeleniumScanner.prepare_directories()
     SeleniumScanner.setup_driver()
     SeleniumScanner.load_url(url)
     SeleniumScanner.load_screenshot()
-    SeleniumScanner.load_bbox()
+    SeleniumScanner.load_bbox(s)
     SeleniumScanner.draw_bbox()
     SeleniumScanner.save_scan()
 
 
 @click.command()
 @click.option("--g", required=True, type=int, help="Group number")
-def bulk_selenium_scan(g) -> None:
+@click.option("--s", required=True, type=float, help="Scale factor for screen resolution")
+def bulk_selenium_scan(g, s) -> None:
     SeleniumScanner.prepare_directories()
 
     with open("./scanning_links_allocations.json", "r") as f:
@@ -106,14 +108,24 @@ def bulk_selenium_scan(g) -> None:
         if link in scanned_links:
             pb.update(1)
             continue
-
-        SeleniumScanner.load_url(link)
+        
+        #try:
+        SeleniumScanner.load_url(link, scroll=True, click_rand_button_p=0.5)
         SeleniumScanner.load_screenshot()
         SeleniumScanner.load_bbox()
-        SeleniumScanner.draw_bbox()
+        SeleniumScanner.draw_bbox(s)
         SeleniumScanner.save_scan()
         scanned_links["link"] = SeleniumScanner.current_uuid.hex
         pb.update(1)
+        #except:
+        #    print(f'Exception... retrying link {link}')
+        #    SeleniumScanner.load_url(link, scroll=True, click_rand_button=0.5)
+        #    SeleniumScanner.load_screenshot()
+        #    SeleniumScanner.load_bbox()
+        #    SeleniumScanner.draw_bbox()
+        #    SeleniumScanner.save_scan()
+        #    scanned_links["link"] = SeleniumScanner.current_uuid.hex
+        #    pb.update(1)
 
 @click.command()
 def scrape() -> None:
