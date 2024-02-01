@@ -3,6 +3,7 @@ from itertools import compress
 import json
 import os
 import time
+import random
 from typing import Any
 from uuid import UUID, uuid4
 from selenium import webdriver
@@ -13,8 +14,8 @@ from selenium.webdriver.remote.webelement import WebElement
 from PIL import Image, ImageDraw
 from tqdm import tqdm
 
-class SeleniumScanner:
 
+class SeleniumScanner:
     driver: WebDriver | None = None
     viewport: dict | None = None
 
@@ -23,14 +24,14 @@ class SeleniumScanner:
     current_screen: Image.Image | None = None
     dir = "./selenium_scans/"
     bbox: list[tuple[int, int, int, int, WebElement]] = []
-    scale_factor = 2
+    scale_factor = 1
 
     @classmethod
     def prepare_directories(cls):
         dir = cls.dir
         if not os.path.exists(dir):
             os.mkdir(dir)
-        
+
         if not os.path.exists(dir + "annotations"):
             os.mkdir(dir + "annotations")
 
@@ -47,14 +48,13 @@ class SeleniumScanner:
 
         if not os.path.exists(dir + "screenshots"):
             os.mkdir(dir + "screenshots")
-        
 
     @classmethod
     def setup_driver(cls):
         cls.driver = webdriver.Chrome()
 
     @classmethod
-    def load_url(cls, url: str):
+    def load_url(cls, url: str, scroll: bool = False, click_rand_button_p: float = 0.0):
         cls.current_screen = None
         cls.bbox = []
 
@@ -63,23 +63,44 @@ class SeleniumScanner:
         cls.driver.get(url)
         cls.viewport = cls.driver.get_window_size()
 
+        if scroll:
+            rand_scroll_pos = random.random()
+            cls.driver.execute_script(
+                f"window.scrollTo(0, document.body.scrollHeight * {rand_scroll_pos});"
+            )
+        if click_rand_button_p:
+            click_probability = random.random()
+            if click_probability <= click_rand_button_p:
+                expandable_buttons: list[WebElement] = []
+                expandable_buttons += cls.driver.find_elements(
+                    By.CSS_SELECTOR, '[aria-expanded="false"]'
+                )
+                rand_button = expandable_buttons[
+                    random.randint(0, len(expandable_buttons) - 1)
+                ]
+                try:
+                    print("Expanding random button...")
+                    rand_button.click()
+                except:
+                    print("Element not interactable. Continuing.")
+
     @classmethod
     def load_screenshot(cls):
         if cls.current_url is None:
             return
-        
+
         time.sleep(5)
         file_path = cls.dir + "screenshots/" + cls.current_uuid.hex + ".png"
         cls.driver.save_screenshot(file_path)
         cls.current_screen = Image.open(file_path)
-    
+
     @classmethod
     def load_bbox(cls):
         elements: list[WebElement] = []
         elements += cls.get_buttons()
         elements += cls.get_links()
         elements += cls.get_inputs()
-        
+
         # repeat for all other interactables
 
         elements = cls.filter_elements_by_area(elements)
@@ -90,44 +111,46 @@ class SeleniumScanner:
         for e in elements:
             pos = e.location
             dim = e.size
-            cls.bbox.append((
-                pos["x"], pos["y"],
-                (pos["x"] + dim["width"]),
-                (pos["y"] + dim["height"]),
-                e
-            ))
+            cls.bbox.append(
+                (
+                    pos["x"],
+                    pos["y"],
+                    (pos["x"] + dim["width"]),
+                    (pos["y"] + dim["height"]),
+                    e,
+                )
+            )
 
         cls.bound_bbox_by_view_port()
         cls.bound_bbox_by_parents()
-        cls.bbox.sort(key = lambda x: x[1])
-    
+        cls.bbox.sort(key=lambda x: x[1])
+
     @classmethod
     def draw_bbox(cls):
         if len(cls.bbox) == 0 or cls.current_screen is None:
             return
-        
+
         draw_bbox = ImageDraw.Draw(cls.current_screen)
         for i, bbox in enumerate(cls.bbox):
             scaled_bbox = [e * cls.scale_factor for e in bbox[:4]]
-            draw_bbox.rectangle(scaled_bbox, outline = "black", width = 3)
-        
-    
+            draw_bbox.rectangle(scaled_bbox, outline="black", width=3)
+
     @classmethod
     def save_scan(cls):
-        bbox_screenshot_path = cls.dir + "bbox_screenshots/bbox-" + cls.current_uuid.hex + ".png"
+        bbox_screenshot_path = (
+            cls.dir + "bbox_screenshots/bbox-" + cls.current_uuid.hex + ".png"
+        )
         annotation_path = cls.dir + "annotations/" + cls.current_uuid.hex + ".json"
         visited_path = cls.dir + "metadata/visited_list.csv"
 
         with open(annotation_path, "w") as f:
-            json.dump({
-                "id" : cls.current_uuid.hex,
-                "clickable" : [
-                    {
-                        "bbox": list(b[:4])
-                    }
-                    for b in cls.bbox
-                ]
-            }, f)
+            json.dump(
+                {
+                    "id": cls.current_uuid.hex,
+                    "clickable": [{"bbox": list(b[:4])} for b in cls.bbox],
+                },
+                f,
+            )
         cls.current_screen.save(bbox_screenshot_path)
 
         with open(visited_path, "a+") as f:
@@ -136,16 +159,16 @@ class SeleniumScanner:
 
     @classmethod
     def get_buttons(cls) -> list[WebElement]:
-        buttons = cls.driver.find_elements(By.XPATH, '//button')
+        buttons = cls.driver.find_elements(By.XPATH, "//button")
         buttons += cls.driver.find_elements(By.XPATH, '//*[@role="button"]')
         return buttons
-    
+
     @classmethod
     def get_links(cls) -> list[WebElement]:
         # I should not be doing this (excluding # elements)
         links = cls.driver.find_elements(By.XPATH, "//a[@href]")
         return links
-    
+
     @classmethod
     def get_inputs(cls) -> list[WebElement]:
         inputs = cls.driver.find_elements(By.XPATH, "//input")
@@ -161,7 +184,7 @@ class SeleniumScanner:
                 continue
             filtered_elements.append(e)
         return filtered_elements
-    
+
     @classmethod
     def deduplicate_elements(cls, elements: list[WebElement]):
         existing = []
@@ -181,17 +204,19 @@ class SeleniumScanner:
         filtered_elements = []
 
         for e in elements:
-            is_visible = cls.driver.execute_script("return arguments[0].offsetParent !== null;", e)
-        
+            is_visible = cls.driver.execute_script(
+                "return arguments[0].offsetParent !== null;", e
+            )
+
             if not e.is_displayed():
                 continue
             if not is_visible:
                 continue
 
             filtered_elements.append(e)
-            
+
         return filtered_elements
-    
+
     @classmethod
     def bound_bbox_by_view_port(cls):
         active_mask = []
@@ -216,7 +241,7 @@ class SeleniumScanner:
 
     @classmethod
     def print_parents_bbox(cls, elements: list[WebElement]):
-        sorted_elements = sorted(elements, key= lambda x: x.location["y"])
+        sorted_elements = sorted(elements, key=lambda x: x.location["y"])
         target = sorted_elements[19]
         print(f"pos: {target.location}, size {target.size}")
         ancestors = target.find_elements(By.XPATH, "ancestor::*")
@@ -226,7 +251,7 @@ class SeleniumScanner:
     @classmethod
     def bound_bbox_by_parents(cls):
         active_mask = []
-        pb = tqdm(total = len(cls.bbox), position = 1)
+        pb = tqdm(total=len(cls.bbox), position=1)
         for i, e in enumerate(cls.bbox):
             element = e[-1]
             left, top, right, bottom = e[:4]
