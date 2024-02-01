@@ -11,6 +11,8 @@ from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webelement import WebElement
 
+from selenium.common.exceptions import ElementClickInterceptedException
+
 from PIL import Image, ImageDraw
 from tqdm import tqdm
 
@@ -24,7 +26,6 @@ class SeleniumScanner:
     current_screen: Image.Image | None = None
     dir = "./selenium_scans/"
     bbox: list[tuple[int, int, int, int, WebElement]] = []
-    scale_factor = 1
 
     @classmethod
     def prepare_directories(cls):
@@ -63,26 +64,35 @@ class SeleniumScanner:
         cls.driver.get(url)
         cls.viewport = cls.driver.get_window_size()
 
-        if scroll:
-            rand_scroll_pos = random.random()
-            cls.driver.execute_script(
-                f"window.scrollTo(0, document.body.scrollHeight * {rand_scroll_pos});"
+        if scroll is True:
+            cls.scroll_page()
+        cls.expand_button(click_rand_button_p)
+
+    @classmethod
+    def scroll_page(cls):
+        rand_scroll_pos = random.random()
+        print(rand_scroll_pos)
+        cls.driver.execute_script(
+            f"window.scrollTo(0, document.body.scrollHeight * {rand_scroll_pos});"
+        )
+
+    @classmethod
+    def expand_button(cls, click_rand_button_p):
+        click_probability = random.random()
+        if click_probability <= click_rand_button_p:
+            expandable_buttons: list[WebElement] = []
+            expandable_buttons += cls.driver.find_elements(
+                By.CSS_SELECTOR, '[aria-expanded="false"]'
             )
-        if click_rand_button_p:
-            click_probability = random.random()
-            if click_probability <= click_rand_button_p:
-                expandable_buttons: list[WebElement] = []
-                expandable_buttons += cls.driver.find_elements(
-                    By.CSS_SELECTOR, '[aria-expanded="false"]'
-                )
-                rand_button = expandable_buttons[
-                    random.randint(0, len(expandable_buttons) - 1)
-                ]
-                try:
-                    print("Expanding random button...")
-                    rand_button.click()
-                except:
-                    print("Element not interactable. Continuing.")
+            rand_button = expandable_buttons[
+                random.randint(0, len(expandable_buttons) - 1)
+            ]
+            try:
+                print("Expanding random button...")
+                rand_button.click()
+            except ElementClickInterceptedException:
+                # Element not interactable
+                return 0
 
     @classmethod
     def load_screenshot(cls):
@@ -126,13 +136,13 @@ class SeleniumScanner:
         cls.bbox.sort(key=lambda x: x[1])
 
     @classmethod
-    def draw_bbox(cls):
+    def draw_bbox(cls, scale_factor):
         if len(cls.bbox) == 0 or cls.current_screen is None:
             return
 
         draw_bbox = ImageDraw.Draw(cls.current_screen)
         for i, bbox in enumerate(cls.bbox):
-            scaled_bbox = [e * cls.scale_factor for e in bbox[:4]]
+            scaled_bbox = [e * scale_factor for e in bbox[:4]]
             draw_bbox.rectangle(scaled_bbox, outline="black", width=3)
 
     @classmethod
