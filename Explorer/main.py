@@ -83,25 +83,27 @@ def selenium_scan(url, scale) -> None:
     SeleniumScanner.prepare_directories()
     SeleniumScanner.setup_driver(scale)
     SeleniumScanner.load_url(url)
-    SeleniumScanner.load_screenshot()
-    SeleniumScanner.load_bbox()
-    SeleniumScanner.draw_bbox()
-    SeleniumScanner.save_scan()
 
+    eop = SeleniumScanner.end_of_page()
+    while next(eop) is False:
+        SeleniumScanner.load_screenshot()
+        SeleniumScanner.load_bbox()
+        SeleniumScanner.draw_bbox()
+        SeleniumScanner.save_scan()
+        SeleniumScanner.scroll_page()
 
 @click.command()
 @click.option("--g", required=True, type=int, help="Group number")
 @click.option("--scale", required=True, type=float, help="Scale factor")
 @click.option("--scroll", required=True, type=bool, help="Scroll page")
 @click.option(
-    "--ep", required=True, type=float, help="Button expand probability"
+    "--ep", required=False, default = 0, type=float, help="Button expand probability"
 )
 def bulk_selenium_scan(g, scale, scroll, ep) -> None:
     SeleniumScanner.prepare_directories()
 
     with open("./scanning_links_allocations.json", "r") as f:
         links_to_scan = json.load(f)
-
     with open("./selenium_scans/metadata/visited_list.csv", "r") as f:
         csv_reader = csv.DictReader(f)
         scanned_links = {line["url"]: line["uuid"] for line in csv_reader}
@@ -114,31 +116,13 @@ def bulk_selenium_scan(g, scale, scroll, ep) -> None:
             continue
         
         SeleniumScanner.load_url(link)
-
-        if ep > 0:
-            SeleniumScanner.expand_button(ep)
-        SeleniumScanner.load_screenshot()
-        SeleniumScanner.load_bbox()
-        SeleniumScanner.draw_bbox()
-        SeleniumScanner.save_scan()
-        
-        if scroll is True:
-            old_height = SeleniumScanner.get_page_height()
-            end_of_page = False
-            while end_of_page is False:
-                new_height = SeleniumScanner.scroll_page()
-                
-                if ep > 0:
-                    SeleniumScanner.expand_button(ep)
-                SeleniumScanner.load_screenshot()
-                SeleniumScanner.load_bbox()
-                SeleniumScanner.draw_bbox()
-                SeleniumScanner.save_scan()
-                
-                if new_height == old_height:
-                    end_of_page = True
-                else:
-                    old_height = new_height
+        eop = SeleniumScanner.end_of_page()
+        while next(eop) is False:
+            SeleniumScanner.load_screenshot()
+            SeleniumScanner.load_bbox()
+            SeleniumScanner.draw_bbox()
+            SeleniumScanner.save_scan()
+            SeleniumScanner.scroll_page()
 
         scanned_links["link"] = SeleniumScanner.current_uuid.hex
         pb.update(1)
