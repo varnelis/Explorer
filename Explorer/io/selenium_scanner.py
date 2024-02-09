@@ -11,7 +11,7 @@ from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
-from selenium.webdriver.common.action_chains import ActionChains as Action
+from selenium.webdriver.common.action_chains import ActionChains
 
 from selenium.common.exceptions import ElementClickInterceptedException
 
@@ -70,30 +70,42 @@ class SeleniumScanner:
 
     @classmethod
     def scroll_page(cls):
-        Action(cls.driver).send_keys(Keys.PAGE_DOWN).perform()
-        new_height = cls.driver.execute_script("return document.body.scrollHeight")
-        return new_height
+        cls.current_uuid = uuid4()
+        ActionChains(cls.driver).scroll_by_amount(0, cls.viewport["height"]).perform()
+        time.sleep(2)
+    
+    @classmethod
+    def end_of_page(cls):
+        old_y_pos = cls.driver.execute_script("return window.pageYOffset;")
+        yield False
+
+        new_y_pos = cls.driver.execute_script("return window.pageYOffset;")
+        print(f"{old_y_pos} -> {new_y_pos}")
+        while new_y_pos != old_y_pos:
+            yield False
+            old_y_pos = new_y_pos
+            new_y_pos = cls.driver.execute_script("return window.pageYOffset;")
+            print(f"{old_y_pos} -> {new_y_pos}")
+        yield True
 
     @classmethod
     def expand_button(cls, click_rand_button_p):
         click_probability = random.random()
-        if click_probability <= click_rand_button_p:
-            expandable_buttons: list[WebElement] = []
-            expandable_buttons += cls.driver.find_elements(
-                By.CSS_SELECTOR, '[aria-expanded="false"]'
-            )
-            rand_button = expandable_buttons[
-                random.randint(0, len(expandable_buttons) - 1)
-            ]
-            try:
-                rand_button.click()
-            except:# ElementClickInterceptedException:
-                # Element not interactable
-                return 0
-            
-    @classmethod
-    def get_page_height(cls):
-        return cls.driver.execute_script("return document.body.scrollHeight")
+        if click_probability > click_rand_button_p:
+            return
+        
+        expandable_buttons: list[WebElement] = []
+        expandable_buttons += cls.driver.find_elements(
+            By.CSS_SELECTOR, '[aria-expanded="false"]'
+        )
+        rand_button = expandable_buttons[
+            random.randint(0, len(expandable_buttons) - 1)
+        ]
+        try:
+            rand_button.click()
+        except:# ElementClickInterceptedException:
+            # Element not interactable
+            return 0
 
     @classmethod
     def load_screenshot(cls):
@@ -112,7 +124,7 @@ class SeleniumScanner:
         elements += cls.get_links()
         elements += cls.get_inputs()
 
-        # repeat for all other interactables
+        # repeat for all other interactable types
 
         elements = cls.filter_elements_by_area(elements)
         elements = cls.deduplicate_elements(elements)
@@ -134,16 +146,19 @@ class SeleniumScanner:
 
         cls.bound_bbox_by_view_port()
         cls.bound_bbox_by_parents()
+        cls.overlay_bbox_by_header()
         cls.bbox.sort(key=lambda x: x[1])
 
     @classmethod
     def draw_bbox(cls):
         if len(cls.bbox) == 0 or cls.current_screen is None:
             return
-
+        
+        viewport_dy = cls.driver.execute_script("return window.pageYOffset;")
         draw_bbox = ImageDraw.Draw(cls.current_screen)
         for i, bbox in enumerate(cls.bbox):
-            scaled_bbox = [e * cls.scale_factor for e in bbox[:4]]
+            shifted_bbox = [bbox[0], bbox[1] - viewport_dy, bbox[2], bbox[3] - viewport_dy]
+            scaled_bbox = [e * cls.scale_factor for e in shifted_bbox]
             draw_bbox.rectangle(scaled_bbox, outline="black", width=3)
 
     @classmethod
@@ -232,8 +247,7 @@ class SeleniumScanner:
     def bound_bbox_by_view_port(cls):
         active_mask = []
 
-        vp_left = 0
-        vp_top = 0
+        vp_left, vp_top = cls.driver.execute_script("return [window.pageXOffset, window.pageYOffset];")
         vp_right = vp_left + cls.viewport["width"]
         vp_bottom = vp_top + cls.viewport["height"]
 
@@ -273,12 +287,51 @@ class SeleniumScanner:
                 a_left, a_top = pos["x"], pos["y"]
                 size = a.size
                 a_right, a_bottom = pos["x"] + size["width"], pos["y"] + size["height"]
-
+                if a_left == 0 and a_top == 0:
+                    continue
                 left = max(left, a_left)
                 top = max(top, a_top)
                 right = min(right, a_right)
                 bottom = min(bottom, a_bottom)
-            cls.bbox[i] = (left, top, right, bottom, e)
+            cls.bbox[i] = (left, top, right, bottom, element)
             active_mask.append(left < right and top < bottom)
             pb.update()
         cls.bbox = list(compress(cls.bbox, active_mask))
+
+    @classmethod
+    def overlay_bbox_by_header(cls):
+        header = cls.driver.find_element(By.XPATH, "//div[@id='top-header-container']")
+        pos = header.location
+        _, h_top = pos["x"], pos["y"]
+        size = header.size
+        _, h_bottom = pos["x"] + size["width"], pos["y"] + size["height"]
+        print(f"pos {pos}, size {size}")
+
+        new_bbox = []
+        
+        for e in cls.bbox:
+            element = e[-1]
+
+            is_header_ancestor = cls.driver.execute_script(
+                """
+                var ancestor = arguments[0];
+                var child = arguments[1];
+                return ancestor.contains(child);
+                """,
+                header,
+                element
+            )
+            if is_header_ancestor is True:
+                new_bbox.append(e)
+                continue
+
+            left, top, right, bottom = e[:4]
+
+            if top > h_top and bottom < h_bottom:
+                continue
+            if h_bottom > top > h_top:
+                top = h_bottom
+            if h_bottom > bottom > h_top:
+                bottom = h_top
+            new_bbox.append([left, top, right, bottom, element])
+        cls.bbox = new_bbox
