@@ -62,13 +62,50 @@ class SeleniumScanner:
         cls.current_uuid = uuid4()
         cls.driver.get(url)
         cls.viewport = cls.driver.get_window_size()
+        time.sleep(5)
+
+    @classmethod
+    def scroll_page(cls):
+        cls.current_uuid = uuid4()
+        ActionChains(cls.driver).scroll_by_amount(0, cls.viewport["height"]).perform()
+        time.sleep(2)
+    
+    @classmethod
+    def end_of_page(cls):
+        old_y_pos = cls.driver.execute_script("return window.pageYOffset;")
+        yield False
+
+        new_y_pos = cls.driver.execute_script("return window.pageYOffset;")
+        while new_y_pos != old_y_pos:
+            yield False
+            old_y_pos = new_y_pos
+            new_y_pos = cls.driver.execute_script("return window.pageYOffset;")
+        yield True
+
+    @classmethod
+    def expand_button(cls, click_rand_button_p):
+        click_probability = random.random()
+        if click_probability > click_rand_button_p:
+            return
+        
+        expandable_buttons: list[WebElement] = []
+        expandable_buttons += cls.driver.find_elements(
+            By.CSS_SELECTOR, '[aria-expanded="false"]'
+        )
+        rand_button = expandable_buttons[
+            random.randint(0, len(expandable_buttons) - 1)
+        ]
+        try:
+            rand_button.click()
+        except:# ElementClickInterceptedException:
+            # Element not interactable
+            return 0
 
     @classmethod
     def load_screenshot(cls):
         if cls.current_url is None:
             return
-        
-        time.sleep(5)
+
         file_path = cls.dir + "screenshots/" + cls.current_uuid.hex + ".png"
         cls.driver.save_screenshot(file_path)
         cls.current_screen = Image.open(file_path)
@@ -246,3 +283,40 @@ class SeleniumScanner:
             active_mask.append(left < right and top < bottom)
             pb.update()
         cls.bbox = list(compress(cls.bbox, active_mask))
+
+    @classmethod
+    def overlay_bbox_by_header(cls):
+        header = cls.driver.find_element(By.XPATH, "//div[@id='top-header-container']")
+        pos = header.location
+        _, h_top = pos["x"], pos["y"]
+        size = header.size
+        _, h_bottom = pos["x"] + size["width"], pos["y"] + size["height"]
+
+        new_bbox = []
+        
+        for e in cls.bbox:
+            element = e[-1]
+
+            is_header_ancestor = cls.driver.execute_script(
+                """
+                var ancestor = arguments[0];
+                var child = arguments[1];
+                return ancestor.contains(child);
+                """,
+                header,
+                element
+            )
+            if is_header_ancestor is True:
+                new_bbox.append(e)
+                continue
+
+            left, top, right, bottom = e[:4]
+
+            if top > h_top and bottom < h_bottom:
+                continue
+            if h_bottom > top > h_top:
+                top = h_bottom
+            if h_bottom > bottom > h_top:
+                bottom = h_top
+            new_bbox.append([left, top, right, bottom, element])
+        cls.bbox = new_bbox
