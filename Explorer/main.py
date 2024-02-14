@@ -114,7 +114,6 @@ def bulk_selenium_scan(g, scale, scroll, ep) -> None:
         if link in scanned_links:
             pb.update(1)
             continue
-        
         SeleniumScanner.load_url(link)
         eop = SeleniumScanner.end_of_page()
         while next(eop) is False:
@@ -168,6 +167,33 @@ def generate_scanning_json(s, n, g) -> None:
         json.dump(allocations, f)
 
 @click.command()
+def generate_splits():
+    with open("./selenium_scans/metadata/visited_list.csv", "r") as f:
+        csv_reader = csv.DictReader(f)
+        links = {line["url"]: line["uuid"] for line in csv_reader}
+    split = [0.8, 0.1, 0.1]
+    total_links = len(links)
+    training = random.sample([(url, uuid) for url, uuid in links.items()], k = int(split[0] * total_links))
+    for t in training:
+        links.pop(t[0])
+    testing = random.sample([(url, uuid) for url, uuid in links.items()], k = int(split[1] * total_links))
+    for t in testing:
+        links.pop(t[0])
+    validation = [(url, uuid) for url, uuid in links.items()]
+    
+    data = {}
+    with open("./selenium_scans/metadata/training.json", "w") as f:
+        data["items"] = [{"url": url, "uuid": uuid} for url, uuid in training]
+        json.dump(data, f)
+    with open("./selenium_scans/metadata/testing.json", "w") as f:
+        data["items"] = [{"url": url, "uuid": uuid} for url, uuid in testing]
+        json.dump(data, f)
+    with open("./selenium_scans/metadata/validation.json", "w") as f:
+        data["items"] = [{"url": url, "uuid": uuid} for url, uuid in validation]
+        json.dump(data, f)
+
+
+@click.command()
 def visualise() -> None:
     show_graph()
 
@@ -182,6 +208,7 @@ main.add_command(scrape)
 main.add_command(scrape_info)
 main.add_command(generate_scanning_json)
 main.add_command(visualise)
+main.add_command(generate_splits)
 
 if __name__ == "__main__":
     main()

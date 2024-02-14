@@ -67,6 +67,44 @@ class SeleniumScanner:
         cls.current_uuid = uuid4()
         cls.driver.get(url)
         cls.viewport = cls.driver.get_window_size()
+        time.sleep(5)
+
+    @classmethod
+    def scroll_page(cls):
+        cls.current_uuid = uuid4()
+        ActionChains(cls.driver).scroll_by_amount(0, cls.viewport["height"]).perform()
+        time.sleep(2)
+    
+    @classmethod
+    def end_of_page(cls):
+        old_y_pos = cls.driver.execute_script("return window.pageYOffset;")
+        yield False
+
+        new_y_pos = cls.driver.execute_script("return window.pageYOffset;")
+        while new_y_pos != old_y_pos:
+            yield False
+            old_y_pos = new_y_pos
+            new_y_pos = cls.driver.execute_script("return window.pageYOffset;")
+        yield True
+
+    @classmethod
+    def expand_button(cls, click_rand_button_p):
+        click_probability = random.random()
+        if click_probability > click_rand_button_p:
+            return
+        
+        expandable_buttons: list[WebElement] = []
+        expandable_buttons += cls.driver.find_elements(
+            By.CSS_SELECTOR, '[aria-expanded="false"]'
+        )
+        rand_button = expandable_buttons[
+            random.randint(0, len(expandable_buttons) - 1)
+        ]
+        try:
+            rand_button.click()
+        except:# ElementClickInterceptedException:
+            # Element not interactable
+            return 0
 
     @classmethod
     def scroll_page(cls):
@@ -112,7 +150,6 @@ class SeleniumScanner:
         if cls.current_url is None:
             return
 
-        time.sleep(5)
         file_path = cls.dir + "screenshots/" + cls.current_uuid.hex + ".png"
         cls.driver.save_screenshot(file_path)
         cls.current_screen = Image.open(file_path)
@@ -305,7 +342,6 @@ class SeleniumScanner:
         _, h_top = pos["x"], pos["y"]
         size = header.size
         _, h_bottom = pos["x"] + size["width"], pos["y"] + size["height"]
-        print(f"pos {pos}, size {size}")
 
         new_bbox = []
         
