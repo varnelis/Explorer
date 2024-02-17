@@ -2,7 +2,6 @@
 from pymongo.mongo_client import MongoClient
 
 class MongoDBInterface:
-
     username = "admin"
     password = "uRQzyxGz95LxSEYW"
     uri = "mongodb+srv://{username}:{password}@explorer-production.oh5gkiu.mongodb.net/?retryWrites=true&w=majority"
