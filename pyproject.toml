@@ -25,6 +25,7 @@ matplotlib = "^3.8.2"
 tqdm = "^4.66.1"
 selenium = "^4.17.2"
 pymongo = {extras = ["srv"], version = "^4.6.1"}
+dacite = "^1.8.1"
 
 [tool.black]
 line-length = 88

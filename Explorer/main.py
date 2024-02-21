@@ -3,12 +3,15 @@ import csv
 import random
 import click
 from tqdm import tqdm
+from Explorer.db.mongo_db import MongoDBInterface
+from Explorer.db.mongo_db_types import OCRModel, Platform
 from Explorer.io.recorder import Recorder
 from Explorer.io.scanner import Scanner
 from Explorer.io.scrapper import Scrapper, count_profiles, first_level_uris, generate_scanning_links, most_referenced, most_referenced_first_level_uris, show_graph
 import time
 import cProfile
 import json
+from dacite import from_dict
 
 from Explorer.io.selenium_scanner import SeleniumScanner
 
@@ -186,6 +189,17 @@ def visualise() -> None:
     show_graph()
 
 
+@click.command()
+def add_ocr_data():
+    db = MongoDBInterface
+    db.connect()
+    ocr_model = list(db.get_items({"version":"0.1.0"}, "ocr-models"))[0]
+    ocr_model = from_dict(OCRModel, ocr_model)
+    platform = list(db.get_items({"metadata":{"owner":"Iason"}}, "platforms"))[0]
+    platform = from_dict(Platform, platform)
+
+    print(ocr_model, platform)
+
 main.add_command(hello_world)
 main.add_command(record)
 main.add_command(scan)
@@ -197,6 +211,7 @@ main.add_command(scrape_info)
 main.add_command(generate_scanning_json)
 main.add_command(visualise)
 main.add_command(generate_splits)
+main.add_command(add_ocr_data)
 
 if __name__ == "__main__":
     main()
