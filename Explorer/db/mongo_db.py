@@ -1,19 +1,19 @@
-
-from bson import ObjectId
+import typing
+import pymongo
 from pymongo.cursor import Cursor
-from pymongo.mongo_client import MongoClient
+from bson.objectid import ObjectId
+
 
 class MongoDBInterface:
-    uri = "mongodb+srv://admin:gJZY5tAn3USh5fuI@explorer-production.oh5gkiu.mongodb.net/?retryWrites=true&w=majority"
-    prod_db_name = "explorer-main"
-
+    uri = "mongodb+srv://admin:v0jAHE7tGH4RL0fY@explorer-production.oh5gkiu.mongodb.net/?retryWrites=true&w=majority"
     client = None
     database = None
 
     @classmethod
-    def connect(cls, username: str = None, password: str = None):
-        cls.client = MongoClient(cls.uri)
-        cls.database = cls.client[cls.prod_db_name]
+    def connect(cls):
+        cls.client = pymongo.MongoClient(cls.uri)
+        cls.client.admin.command("ping")
+        cls.database = cls.client["Explorer-production"]
 
     @classmethod
     def add_items(cls, items: list[dict], collection: str) -> list[ObjectId]:

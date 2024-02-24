@@ -191,13 +191,11 @@ def visualise() -> None:
 
 @click.command()
 def add_ocr_data():
-    db = MongoDBInterface
-    db.connect()
-    ocr_model = list(db.get_items({"version":"0.1.0"}, "ocr-models"))[0]
+    MongoDBInterface.connect()
+    ocr_model = list(MongoDBInterface.get_items({"version":"0.1.0"}, "ocr-models"))[0]
     ocr_model = from_dict(OCRModel, ocr_model)
-    platform = list(db.get_items({"metadata":{"owner":"Iason"}}, "platforms"))[0]
+    platform = list(MongoDBInterface.get_items({"metadata":{"owner":"Iason"}}, "platforms"))[0]
     platform = from_dict(Platform, platform)
-
     print(ocr_model, platform)
 
 main.add_command(hello_world)
