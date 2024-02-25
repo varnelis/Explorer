@@ -1,0 +1,306 @@
+from collections import defaultdict
+import csv
+import random
+import click
+from tqdm import tqdm
+from Explorer.db.mongo_db import MongoDBInterface
+from Explorer.db.mongo_db_types import OCRModel, Platform, Screenshot
+from Explorer.io.recorder import Recorder
+from Explorer.io.scanner import Scanner
+from Explorer.io.scrapper import Scrapper, count_profiles, first_level_uris, generate_scanning_links, most_referenced, most_referenced_first_level_uris, show_graph
+import time
+import cProfile
+import json
+import io
+import uuid
+
+from dacite import from_dict
+from PIL import Image
+from imagehash import average_hash
+
+from Explorer.io.selenium_scanner import SeleniumScanner
+from Explorer.ocr.ocr import KhanOCR
+
+@click.group()
+def main() -> None:
+    pass
+
+
+@click.command()
+def hello_world() -> None:
+    print("Testing - Hello world!")
+
+
+@click.command()
+def record() -> None:
+    Recorder.record_data = True
+    recorder = Recorder()
+    recorder.start()
+
+    while recorder.is_running():
+        time.sleep(1)
+    recorder.finish()
+
+
+@click.command()
+@click.argument("url")
+@click.option("--d", required=False, type=int, help="Scan depth limit")
+@click.option("--a", required=False, type=int, help="Active scan limit")
+@click.option("--npass", default=0, type=int, help="Do n non-active passes")
+@click.option("--prefix", default="", type=str, help="File prefix")
+@click.option(
+    "--response", default=0.01, type=float, help="Interactables response time (s)"
+)
+def scan(url, d, a, npass, prefix, response) -> None:
+    scanner = Scanner(url, prefix=prefix, response=response)
+    scanner.scan(d, a, npass)
+
+@click.command()
+@click.argument("source")
+@click.argument("url")
+@click.option("--d", required=False, type=int, help="Scan depth limit")
+@click.option("--a", required=False, type=int, help="Active scan limit")
+@click.option(
+    "--response", default=0.01, type=float, help="Interactables response time (s)"
+)
+def scan_bulk(source: str, url: str, d, a, response) -> None:
+    uris = []
+    with open(source, "r") as f:
+        uris = [line[:-1] for line in f]
+
+    scanner = Scanner(
+        url = url + uris[0],
+        prefix = uris[0].replace("/", "-"),
+        response = response,
+        mode = "bulk",
+        screen_origin = (1119, 300),
+        screen_width = 100,
+        screen_height = 301,
+        url_popup_origin = (1337, 587),
+        url_popup_width = 10,
+        url_popup_height = 10
+    )
+    scanner.scan(d, a)
+    for u in uris[1:]:
+        scanner.load_next_url(url + u, prefix=u.replace("/", "-"))
+        scanner.scan(d, a)
+    
+@click.command()
+@click.argument("url")
+@click.option("--scale", required=True, type=float, help="Scale factor")
+def selenium_scan(url, scale) -> None:
+    SeleniumScanner.prepare_directories()
+    SeleniumScanner.setup_driver(scale)
+    SeleniumScanner.load_url(url)
+
+    eop = SeleniumScanner.end_of_page()
+    while next(eop) is False:
+        SeleniumScanner.load_screenshot()
+        SeleniumScanner.load_bbox()
+        SeleniumScanner.draw_bbox()
+        SeleniumScanner.save_scan()
+        SeleniumScanner.scroll_page()
+
+@click.command()
+@click.option("--g", required=True, type=int, help="Group number")
+@click.option("--scale", required=True, type=float, help="Scale factor")
+@click.option("--scroll", required=True, type=bool, help="Scroll page")
+@click.option(
+    "--ep", required=False, default = 0, type=float, help="Button expand probability"
+)
+def bulk_selenium_scan(g, scale, scroll, ep) -> None:
+    SeleniumScanner.prepare_directories()
+
+    with open("./scanning_links_allocations.json", "r") as f:
+        links_to_scan = json.load(f)
+    with open("./selenium_scans/metadata/visited_list.csv", "r") as f:
+        csv_reader = csv.DictReader(f)
+        scanned_links = {line["url"]: line["uuid"] for line in csv_reader}
+
+    pb = tqdm(total = len(links_to_scan[str(g)]), position = 0)
+    SeleniumScanner.setup_driver(scale)
+    for link in links_to_scan[str(g)]:
+        if link in scanned_links:
+            pb.update(1)
+            continue
+        SeleniumScanner.load_url(link)
+        eop = SeleniumScanner.end_of_page()
+        while next(eop) is False:
+            SeleniumScanner.load_screenshot()
+            SeleniumScanner.load_bbox()
+            SeleniumScanner.draw_bbox()
+            SeleniumScanner.save_scan()
+            SeleniumScanner.scroll_page()
+
+        scanned_links["link"] = SeleniumScanner.current_uuid.hex
+        pb.update(1)
+
+@click.command()
+def scrape() -> None:
+    crawler = Scrapper("https://www.khanacademy.org")
+    crawler.start("/")
+
+@click.command()
+def scrape_info() -> None:
+    count_profiles()
+    first_level_uris()
+    most_referenced()
+    most_referenced_first_level_uris()
+
+@click.command()
+@click.option("--s", required=True, type=int, help="Random number generator seed")
+@click.option("--n", required=True, type=int, help="Number of links to scan")
+@click.option("--g", required=True, type=int, help="Groups to allocate")
+def generate_scanning_json(s, n, g) -> None:
+    random.seed(s)
+    
+    links = generate_scanning_links()
+    total_links = links["total"]
+    allocations = defaultdict(list)
+
+    for k in links.keys():
+        if k == "total":
+            continue
+
+        n_links_to_allocate = max(1, int(links[k]["count"] / total_links * n))
+        if k == "/login":
+            n_links_to_allocate = 1
+
+        random_links = random.choices(links[k]["links"], k = n_links_to_allocate)
+
+        for link in random_links:
+            group = int(random.random() * g)
+            allocations[group].append(link)
+
+    with open("./scanning_links_allocations.json", "w") as f:
+        json.dump(allocations, f)
+
+@click.command()
+def generate_splits():
+    with open("./selenium_scans/metadata/visited_list.csv", "r") as f:
+        csv_reader = csv.DictReader(f)
+        links = {line["url"]: line["uuid"] for line in csv_reader}
+    split = [0.8, 0.1, 0.1]
+    total_links = len(links)
+    training = random.sample([(url, uuid) for url, uuid in links.items()], k = int(split[0] * total_links))
+    for t in training:
+        links.pop(t[0])
+    testing = random.sample([(url, uuid) for url, uuid in links.items()], k = int(split[1] * total_links))
+    for t in testing:
+        links.pop(t[0])
+    validation = [(url, uuid) for url, uuid in links.items()]
+    
+    data = {}
+    with open("./selenium_scans/metadata/training.json", "w") as f:
+        data["items"] = [{"url": url, "uuid": uuid} for url, uuid in training]
+        json.dump(data, f)
+    with open("./selenium_scans/metadata/testing.json", "w") as f:
+        data["items"] = [{"url": url, "uuid": uuid} for url, uuid in testing]
+        json.dump(data, f)
+    with open("./selenium_scans/metadata/validation.json", "w") as f:
+        data["items"] = [{"url": url, "uuid": uuid} for url, uuid in validation]
+        json.dump(data, f)
+
+
+@click.command()
+def visualise() -> None:
+    show_graph()
+
+
+@click.command()
+def print_database():
+    MongoDBInterface.connect()
+
+    ocr_model = list(MongoDBInterface.get_items({"version":"0.1.0"}, "ocr-models"))[0]
+    ocr_model = from_dict(OCRModel, ocr_model)
+    platform = list(MongoDBInterface.get_items({"metadata":{"owner":"Iason"}}, "platforms"))[0]
+    platform = from_dict(Platform, platform)
+    print(ocr_model, platform)
+
+    screenshot = list(MongoDBInterface.get_items({}, "screenshots"))
+    ocr = list(MongoDBInterface.get_items({}, "image-text-content"))
+
+    print(len(screenshot))
+    print(len(ocr))
+    '''
+    for i in range(len(screenshot)):
+        #print(f"_id {screenshot[i]['_id']}, uuid {screenshot[i]['uuid']}, platform {screenshot[i]['platform_id']}, hash {screenshot[i]['hash']}")
+        screenshot_id.append(screenshot[i]['_id'])
+    for i in range(len(ocr)):
+        print('\n')
+        print(f"_id {ocr[i]['_id']}, screehshot {ocr[i]['screenshot_id']}")
+        print(f"text {ocr[i]['text']}")
+        print(f"confidence {ocr[i]['confidence']}")
+    '''
+    
+
+@click.command()
+def add_ocr_data():
+    MongoDBInterface.connect()
+    platform = list(MongoDBInterface.get_items({"metadata":{"owner":"Iason"}}, "platforms"))[0]
+    platform_id = platform['_id']
+    ocr_model = list(MongoDBInterface.get_items({"version":"0.1.0"}, "ocr-models"))[0]
+    ocr_version = ocr_model['version']
+
+    khan_ocr = KhanOCR(img_paths_file="./selenium_scans/metadata/domain_map.json")
+    all_image_paths = khan_ocr.get_all_img()
+
+    # add Screenshot collection
+    db_screenshots = []
+
+    for img_uuid in tqdm(all_image_paths, desc='Screenshots collection'):
+        path = all_image_paths[img_uuid]
+
+        img = Image.open(path)
+        img_hash = str(average_hash(img))
+
+        img_bytes = io.BytesIO()
+        img.save(img_bytes, format='PNG')
+        
+        db_image = {
+            "uuid": img_uuid,
+            "platform_id": platform_id,
+            "hash": img_hash,
+            "image": img_bytes.getvalue(),
+        }
+        db_screenshots.append(db_image)
+    insert_ids_screenshots = MongoDBInterface.add_items(db_screenshots, "screenshots")
+
+    # add OCR data collection
+    with open("./selenium_scans/metadata/uuid2ocr_base.json", "r") as f:
+        ocr_base = json.load(f)
+    
+    db_ocr = []
+    for image_id in tqdm(insert_ids_screenshots, desc='Image Text Content collection'):
+        img_uuid = list(MongoDBInterface.get_items({"_id":image_id}, "screenshots"))[0]['uuid']
+        text_location = list(map(lambda doc: doc[0], ocr_base[img_uuid]))
+        text = list(map(lambda doc: doc[1], ocr_base[img_uuid]))
+        condifence = list(map(lambda doc: doc[2], ocr_base[img_uuid]))
+
+        db_image_ocr = {
+            "screenshot_id": image_id,
+            "ocr_version": ocr_version,
+            "text_location": text_location,
+            "text": text,
+            "confidence": condifence,
+        }
+        db_ocr.append(db_image_ocr)
+    insert_ids_ocr = MongoDBInterface.add_items(db_ocr, "image-text-content")
+
+main.add_command(hello_world)
+main.add_command(record)
+main.add_command(scan)
+main.add_command(selenium_scan)
+main.add_command(bulk_selenium_scan)
+main.add_command(scan_bulk)
+main.add_command(scrape)
+main.add_command(scrape_info)
+main.add_command(generate_scanning_json)
+main.add_command(visualise)
+main.add_command(generate_splits)
+main.add_command(print_database)
+main.add_command(add_ocr_data)
+
+
+if __name__ == "__main__":
+    main()
