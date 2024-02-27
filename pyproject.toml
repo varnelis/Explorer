@@ -26,6 +26,12 @@ tqdm = "^4.66.1"
 selenium = "^4.17.2"
 pymongo = {extras = ["srv"], version = "^4.6.2"}
 dacite = "^1.8.1"
+torch = "^2.2.1"
+torchvision = "^0.17.1"
+easyocr = "^1.7.1"
+nltk = "^3.8.1"
+sentence-transformers = "2.3.1"
+imagehash = "^4.3.1"
 
 [tool.black]
 line-length = 88
