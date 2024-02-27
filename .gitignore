@@ -166,3 +166,4 @@ temp/
 *.json
 .DS_Store
 *.csv
+*.npz
