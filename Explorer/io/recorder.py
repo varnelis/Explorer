@@ -40,8 +40,8 @@ class Recorder:
         Recorder._data_limit = 1000
         Recorder._data = np.empty((Recorder._data_limit, 6), dtype=int)
 
-    def start(self) -> None:
-        Recorder._start_time = time.time()
+    def start(self, start_time) -> None:
+        Recorder._start_time = start_time
 
         self.mouse_listener.start()
         self.keyboard_listener.start()

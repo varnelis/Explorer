@@ -20,6 +20,7 @@ from imagehash import average_hash
 
 from Explorer.io.selenium_scanner import SeleniumScanner
 from Explorer.ocr.ocr import KhanOCR
+from Explorer.io.snapshot_grabber import SnapshotGrabber
 
 @click.group()
 def main() -> None:
@@ -34,12 +35,19 @@ def hello_world() -> None:
 @click.command()
 def record() -> None:
     Recorder.record_data = True
+    grabber = SnapshotGrabber()
     recorder = Recorder()
-    recorder.start()
+
+    start_time = time.time()
+    recorder.start(start_time)
+    grabber.start(start_time)
 
     while recorder.is_running():
         time.sleep(1)
+
     recorder.finish()
+    grabber.join()
+
 
 
 @click.command()
