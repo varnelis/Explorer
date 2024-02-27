@@ -10,9 +10,11 @@ from nltk import word_tokenize, pos_tag
 from sentence_transformers import SentenceTransformer
 from PIL import Image
 import numpy as np
+from numpy._typing import NDArray
 from itertools import combinations
 import torch
 from typing import Literal
+
 
 
 class KhanOCR:
@@ -128,7 +130,7 @@ class KhanOCR:
 
         return ocr_base_int, ocr_processed_thres50
 
-    def word_embedding(self, text: list[str], concat: bool = True) -> list[np.array] | np.array:
+    def word_embedding(self, text: list[str], concat: bool = True) -> list[NDArray] | NDArray:
         """
         Vector embedding by Sentence Transformer for input text.
         :text   -- list of sentences
@@ -249,6 +251,6 @@ class KhanOCR:
 
 if __name__ == '__main__':
     khan_ocr = KhanOCR()
-    #khan_ocr.all_images_ocr_base()
-    #khan_ocr.compare_embeddings()
+    khan_ocr.all_images_ocr_base()
+    khan_ocr.compare_embeddings()
     khan_ocr.draw_embeddings_graph()
