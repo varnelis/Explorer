@@ -18,13 +18,27 @@ class MongoDBInterface:
     @classmethod
     def add_items(cls, items: list[dict], collection: str) -> list[ObjectId]:
         if collection not in cls.database.list_collection_names():
-            raise NameError(f"Colelction {collection} does not exist in the database")
+            raise NameError(f"Collection {collection} does not exist in the database")
         result = cls.database[collection].insert_many(items)
         return result.inserted_ids
 
     @classmethod
     def get_items(cls, filter: dict, collection: str) -> Cursor:
         if collection not in cls.database.list_collection_names():
-            raise NameError(f"Colelction {collection} does not exist in the database")
+            raise NameError(f"Collection {collection} does not exist in the database")
         cursor = cls.database[collection].find(filter)
         return cursor
+
+    @classmethod
+    def delete_items(cls, ids: list[str | ObjectId], collection: str) -> Cursor:
+        if collection not in cls.database.list_collection_names():
+            raise NameError(f"Collection {collection} does not exist in the database")
+        result = cls.database[collection].delete_many({"_id": {"$in": list(map(lambda x: ObjectId(x), ids))}})
+        return result
+    
+    @classmethod
+    def delete_all(cls, collection: str) -> Cursor:
+        if collection not in cls.database.list_collection_names():
+            raise NameError(f"Collection {collection} does not exist in the database")
+        result = cls.database[collection].delete_many({})
+        return result
