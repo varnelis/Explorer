@@ -12,6 +12,7 @@ from PIL import Image
 import numpy as np
 from itertools import combinations
 import torch
+from typing import Literal
 
 
 class KhanOCR:
@@ -20,8 +21,8 @@ class KhanOCR:
                  img_paths_file: str = "../../selenium_scans/metadata/domain_map.json",
                  uuid2ocr_file: str = "../../selenium_scans/metadata/uuid2ocr_base.json",
                  uuid2ocr_file_processed: str = "../../selenium_scans/metadata/uuid2ocr_processed_thres50.json",
-                 uuid2graph_file: str = "../../selenium_scans/metadata/uuid2graph_base_thres50.json",
-                 compare_embedding_file: str = "../../selenium_scans/metadata/ocr_compare_embeddings_base_thres50",
+                 uuid2graph_file: str = "../../selenium_scans/metadata/uuid2graph.json",
+                 compare_embedding_file: str = "../../selenium_scans/metadata/ocr_compare_embeddings",
                  ):
         super().__init__()
 
@@ -30,6 +31,7 @@ class KhanOCR:
         self.uuid2ocr_file_processed = uuid2ocr_file_processed
         self.uuid2graph_file = uuid2graph_file
         self.compare_embedding_file = compare_embedding_file
+
         self.reader = easyocr.Reader(['en']) # this needs to run only once to load the model into memory
         self._init_nltk()
 
@@ -41,6 +43,7 @@ class KhanOCR:
         nltk.download('wordnet')
 
     def get_all_img(self):
+        """ Get all relative paths from this dir to the image screenshots """
         all_paths = {}
         relative_path_base = self.img_paths_file.split('selenium_scans')[0] + 'selenium_scans'
         
@@ -87,12 +90,13 @@ class KhanOCR:
         return lemmatized_words
     
     def get_ocr(self, img, lemmatize: bool):
+        """ OCR from image path `img` @ confidence 0.75, preprocess and _concatenate_ (+ optionally lemmatize) """
         ocr_read = self.reader.readtext(img)
         ocr_text = ''
         for d in ocr_read:
-            if d[-1] > 0.75:
+            if d[-1] > 0.75: # confidence
                 ocr_text += self.preprocess_text(d[-2])
-                ocr_text += ' '
+                ocr_text += ' ' # concatenate
 
         if lemmatize:
             lem_text = self.lemmatize_passage(ocr_text)
@@ -100,6 +104,15 @@ class KhanOCR:
         return ocr_text
     
     def get_base_ocr(self, img):
+        """
+        ocr_base              -- OCR from image path `img` @ confidence 0.5, without preprocessing
+        ocr_base_int          -- ocr_base with conversion of text bboxes from np.int32 to int for json serialisation
+                                 list of bbox (int), text (str), confidence (float) for each detected sentence in img
+        ocr_processed_thres50 -- ocr_base with preprocessing on text & dropping the bbox and confidence data
+                                 list of preprocessed text (str) for each detected sentence in img
+        
+        *** ocr_base_int is the OCR data pushed to MongoDB ***
+        """
         ocr_base = self.reader.readtext(img)
         ocr_processed_thres50 = []
         
@@ -115,11 +128,19 @@ class KhanOCR:
 
         return ocr_base_int, ocr_processed_thres50
 
-    def word_embedding(self, text):
-        """ embedding by Sentence Transformer """
+    def word_embedding(self, text: list[str], concat: bool = True) -> list[np.array] | np.array:
+        """
+        Vector embedding by Sentence Transformer for input text.
+        :text   -- list of sentences
+        :concat -- whether to get separate embedding for each sentence in `text` or to concat
+                   and get single embedding
+        
+        return  -> list of 384-vector embeddings for all sentences in `text` (or 1 embedding if concat)
+        """
         model = SentenceTransformer('all-MiniLM-L6-v2')
             # good model between performance (58.8) and speed (14.2k sentences/sec) among ST models
-        text = ' '.join(text)
+        if concat:
+            text = ' '.join(text)
         return model.encode(text, convert_to_numpy=True)
     
     def all_images_ocr_embeddings(self, lemmatize: bool = True):
@@ -160,6 +181,9 @@ class KhanOCR:
             json.dump(self.uuid2ocr_thres50, f)
 
     def compare_embeddings(self):
+        """ Cover all possible pairs of 2 images (338 images -> 114k pairs) and compare the 
+         concatenated embeddings of their OCR """
+
         with open(self.uuid2graph_file, 'r') as f:
             uuid2ocr = json.load(f)
         all_uuid = list(uuid2ocr.keys())
@@ -188,30 +212,43 @@ class KhanOCR:
             json.dump(uuid2graph, f)
         np.savez(self.compare_embedding_file, distance_comparison_graph)
 
-    def draw_embeddings_graph(self):
-        dist_euclid = np.load(self.compare_embedding_file + '_euclid.npz')['arr_0']
-        dist_cosine = np.load(self.compare_embedding_file + '_cosine.npz')['arr_0']
+    def draw_embeddings_graph(self, dist_type: str = Literal['euclid', 'cosine']):
+        if dist_type == 'euclid':
+            dist = np.load(self.compare_embedding_file + '_euclid.npz')['arr_0']
+        else:
+            dist = np.load(self.compare_embedding_file + '_cosine.npz')['arr_0']
 
         import networkx as nx 
         import pylab as plt 
         from networkx.drawing.nx_agraph import graphviz_layout
+        import matplotlib.pyplot as plt
+        from community import community_louvain
 
         G = nx.Graph()
-        for i in tqdm(range(len(dist_euclid))):
+        for i in tqdm(range(len(dist))):
             if not G.has_node(i):
                 G.add_node(i)
-            for j in range(i+1, len(dist_euclid)):
+            for j in range(i+1, len(dist)):
                 if not G.has_node(j):
                     G.add_node(j)
 
-                G.add_edge(i,j,color='white',len=dist_euclid[i,j])
+                G.add_edge(i,j,color='white',len=1/dist[i,j]) # distance as edge weight (dist? inverse? negative?)
 
+        # plot with enforced distance between nodes proportional to edge weight
         pos=graphviz_layout(G)
-        nx.draw(G, pos, node_size=1000, with_labels=True, edge_color='white')
+        nx.draw(G, pos, node_size=100, with_labels=True, edge_color='white')
+        plt.show()
+        #plt.savefig('./ocr_embed_graph_euclid.png')
+
+        # plot clustering
+        partition = community_louvain.best_partition(G, weight='weight')
+        pos = nx.spring_layout(G)
+        cmap = plt.cm.get_cmap('viridis', max(partition.values()) + 1)
+        nx.draw(G, pos, node_color='green', with_labels=True, edge_color='none', font_weight='bold')
         plt.show()
 
 if __name__ == '__main__':
     khan_ocr = KhanOCR()
-    khan_ocr.all_images_ocr_base()
+    #khan_ocr.all_images_ocr_base()
     #khan_ocr.compare_embeddings()
-    #khan_ocr.draw_embeddings_graph()
+    khan_ocr.draw_embeddings_graph()
