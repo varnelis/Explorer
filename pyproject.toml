@@ -32,6 +32,7 @@ easyocr = "^1.7.1"
 nltk = "^3.8.1"
 sentence-transformers = "2.3.1"
 imagehash = "^4.3.1"
+mss = "^9.0.1"
 
 [tool.black]
 line-length = 88
