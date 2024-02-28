@@ -20,11 +20,11 @@ from typing import Literal
 class KhanOCR:
 
     def __init__(self,
-                 img_paths_file: str = "../../selenium_scans/metadata/domain_map.json",
-                 uuid2ocr_file: str = "../../selenium_scans/metadata/uuid2ocr_base.json",
-                 uuid2ocr_file_processed: str = "../../selenium_scans/metadata/uuid2ocr_processed_thres50.json",
-                 uuid2graph_file: str = "../../selenium_scans/metadata/uuid2graph.json",
-                 compare_embedding_file: str = "../../selenium_scans/metadata/ocr_compare_embeddings",
+                 img_paths_file: str = "selenium_scans/metadata/domain_map.json",
+                 uuid2ocr_file: str = "selenium_scans/metadata/uuid2ocr_base.json",
+                 uuid2ocr_file_processed: str = "selenium_scans/metadata/uuid2ocr_processed_thres50.json",
+                 uuid2graph_file: str = "selenium_scans/metadata/uuid2graph.json",
+                 compare_embedding_file: str = "selenium_scans/metadata/ocr_compare_embeddings",
                  ):
         super().__init__()
 

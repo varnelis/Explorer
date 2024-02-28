@@ -55,7 +55,9 @@ class ScannerBoundingBoxes:
 class ImageTextContent:
     screenshot_id: ObjectId
     ocr_version: str
-    text: str
+    text: list[str]
+    text_location: list
+    confidence: list[float]
     _id: ObjectId | None = None
 
 @dataclass

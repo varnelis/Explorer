@@ -15,6 +15,7 @@ class Index:
     # uuid can be 
     data: dict[UUID, Term]
     token_index: dict[Token, Entry]
+    term_index: dict[UUID, dict[Token, Frequency]]
     # TODO: Add term index, I don't know why I did not do that in the first place, oh well.
     # Then find_all_to_all_match can be implemented to use this, and it will be much quicker
 
@@ -45,12 +46,21 @@ class Index:
             # Calculate token Importance in term, and save reference to the term in token Entry
             for token, frequency in term_index[uuid].items():
                 token_importance = math.sqrt(frequency) / (term_weigth * token_index[token].count)
-                token_index[token].reference[term] = token_importance
+                token_index[token].reference[uuid] = token_importance
+        
+        term_lengths = sorted([len(tokens) for tokens in term_index.values()])
+        print(f"Unique tokens: {len(token_index)}")
+        print(f"Longest term length: {term_lengths[-1]}")
+        print(f"Shortest term length: {term_lengths[0]}")
+        print(f"Q1 term length: {term_lengths[len(term_lengths) // 4]}")
+        print(f"Q2 term length: {term_lengths[len(term_lengths) // 2]}")
+        print(f"Q3 term length: {term_lengths[len(term_lengths) // 4 * 3]}")
 
         return Index(
             tokenizer=tokenizer,
-            data=data,
+            data=uuid_data,
             token_index=token_index,
+            term_index=term_index
         )
     
     @classmethod
@@ -77,11 +87,11 @@ class Index:
 
     def get_token_frequency(self, token: Token) -> Frequency:
         try:
-            return self.index[token].count
+            return self.token_index[token].count
         except KeyError:
             return 0
     
-    def find_matches_for(self, term: Term, depth: int = -1) -> dict[Term, Similarity]:
+    def find_matches_for(self, term: Term, depth: int = -1) -> dict[UUID, Similarity]:
         tokens = self.tokenizer.apply(term)
 
         if depth > len(tokens) or depth == -1:
@@ -95,14 +105,39 @@ class Index:
 
         # Sort tokens in descending importance
         tokens.sort(key = lambda key: self.get_token_frequency(key))
-        matches: dict[Term, Similarity] = defaultdict(Similarity)
+        matches: dict[UUID, Similarity] = defaultdict(Similarity)
 
         # Only search the most important <depth> tokens.
         # We might have millions of different tokens, which do nothing to the score
         # This might need to be tuned specifically for different data sets
         for token in tokens[:depth]:
-            for term_match, indexed_weight in self.token_index[token].reference.items():
-                matches[term_match] += indexed_weight / (term_weight * self.token_index[token].count)
+            for uuid, indexed_weight in self.token_index[token].reference.items():
+                matches[uuid] += indexed_weight / (term_weight * self.token_index[token].count)
+
+        return matches
+
+    def find_matches_for_existing_term(self, uuid: UUID, depth: int = -1) -> dict[UUID, Similarity]:
+        tokens = list(self.term_index[uuid].keys())
+
+        if depth > len(tokens) or depth == -1:
+            depth = len(tokens)
+
+        # Count tokens and get term_weight
+        tokens_index: dict[Token, Frequency] = defaultdict(Frequency)
+        for token in tokens:
+            tokens_index[token] += 1
+        term_weight = self.outside_term_weight(tokens_index)
+
+        # Sort tokens in descending importance
+        tokens.sort(key = lambda key: self.get_token_frequency(key))
+        matches: dict[UUID, Similarity] = defaultdict(Similarity)
+
+        # Only search the most important <depth> tokens.
+        # We might have millions of different tokens, which do nothing to the score
+        # This might need to be tuned specifically for different data sets
+        for token in tokens[:depth]:
+            for uuid, indexed_weight in self.token_index[token].reference.items():
+                matches[uuid] += indexed_weight / (term_weight * self.token_index[token].count)
 
         return matches
     
@@ -115,11 +150,21 @@ class Index:
         return [(match, matches[match]) for match in ordered_term_matches[:count]]
     
     def find_all_to_all_match(self, depth: int=-1) -> dict[UUID, dict[UUID, Similarity]]:
-        match_matrix = np.array()
+        match_matrix = {}
+        all_uuids = list(self.data.keys())
         for uuid, term in self.data.items():
-            matches = self.find_matches_for(term, depth)
+            matches = self.find_matches_for_existing_term(uuid, depth)
+            uuids_found = list(matches.keys())
+            if depth != -1:
+                for u in all_uuids:
+                    if u not in uuids_found:
+                        matches[u] = 0.0
             normalization_const = max(list(matches.values()))
+
             for k, v in matches.items():
                 matches[k] = v / normalization_const
             match_matrix[uuid] = matches
         return match_matrix
+
+    def get_similarity_between_existing_terms(self, uuid1: UUID, uuid2: UUID, depth: int=-1) -> Similarity:
+        return self.find_matches_for_existing_term(uuid1, depth)[uuid2]
