@@ -12,7 +12,7 @@ import torchvision
 import random
 from tqdm import tqdm
 
-from ui_models_extra_multihead import FCOSMultiHead
+from Explorer.audionav_shortlister.ui_models_extra_multihead import FCOSMultiHead
 
 class UIElementDetector(pl.LightningModule):
     def __init__(self, num_classes=25, min_size=320, max_size=640, use_multi_head=True, lr=0.0001, val_weights=None, test_weights=None, arch="fcos"):

@@ -1,17 +1,18 @@
 import io
 import os
 import json
+import gdown
 import numpy as np
 from tqdm import tqdm
-from Explorer.db.mongo_db import MongoDBInterface
-
-from Explorer.audionav_shortlister.ui_models_distributed import *
 
 from typing import Union, Literal
 from uuid import UUID
 from dacite import from_dict
 from PIL import Image, ImageDraw
 from torchvision import transforms
+
+from Explorer.db.mongo_db import MongoDBInterface
+from Explorer.audionav_shortlister.ui_models_distributed import *
 
 import seaborn as sns
 import matplotlib.pylab as plt
@@ -24,13 +25,10 @@ InteractableModel = Literal["interactable-detector", "web7kbal", "web350k", "vin
 
 
 class Shortlister:
-    def __init__(
-        self,
-        screenshots_path: Union[str | None] = None,
-        ocr_path: Union[str | None] = None,
-    ) -> None:
+    def __init__(self, base_dir: str) -> None:
         super(Shortlister).__init__()
 
+        self.base_dir = base_dir
         self.transforms = transforms.ToTensor()
         self.shortlist_bbox = {
             "ocr": [],
@@ -58,12 +56,40 @@ class Shortlister:
         if show_image:
             self.image.show()
         if save_image:
-            self.image.save(f"./shortlist_images/image_raw_{uuid}.png")
+            self.image.save(os.path.join(self.base_dir, f"./shortlist_images/image_raw_{uuid}.png"))
 
         ocr_data = MongoDBInterface.get_items(
             {"screenshot_id": image_id}, "image-text-content"
         )
         self.ocr_data = list(ocr_data)[0]
+
+    def get_model_weights(self, model: InteractableModel) -> None:
+        """ Get file for weights of the model (local or from mongodb) """
+        
+        self.model2file = {"web7kbal": "screenrecognition-web7kbal.ckpt",
+                           "web350k": "screenrecognition-web350k.ckpt",
+                           "vins": "screenrecognition-web350k-vins.ckpt",
+                           "interactable-detector": "screenrecognition-interactdetect.ckpt",}
+        self.model2version = {"web7kbal": "v0.1.0",
+                              "web350k": "v0.2.0",
+                              "vins": "v0.3.0",
+                              "interactable-detector": "v0.4.0",}
+        
+        MongoDBInterface.connect()
+        weights = MongoDBInterface.get_items({"version": self.model2version[model]}, "detectors").limit(1)
+        weights = list(weights)[0]
+        weights_url = weights["url"]#.split('/file/d/')[1]
+        
+        self.model_weights_path = self._gdown_url(weights_url, "weights", self.model2file[model])
+
+    def _gdown_url(self, url: str, model_path: str, model_key: str) -> None:
+        if not os.path.exists(os.path.join(self.base_dir, model_path)):
+            os.makedirs(os.path.join(self.base_dir, model_path))
+        if not os.path.exists(os.path.join(self.base_dir, model_path, model_key)):
+            #url = url + '/view?usp=share_link'
+            print('Retrieving weights from URL = ', url)
+            gdown.download(url=url, output=os.path.join(self.base_dir, model_path, model_key), fuzzy=True)
+        return os.path.join(self.base_dir, model_path, model_key)
 
     def shortlist_ocr(
         self,
@@ -96,24 +122,11 @@ class Shortlister:
         """Shortlist based on an interactable detector model (ours or WebUI)
         above confidence interactable_threshold (plus NMS up to nms_iou_threshold)."""
 
-        if model == "interactable-detector":
-            model_ckpt = "./last-v8.ckpt"
-        elif model == "web7kbal":
-            model_ckpt = "./screenrecognition-web7kbal.ckpt"
-        elif model == "web350k":
-            model_ckpt = "./screenrecognition-web350k.ckpt"
-        elif model == "vins":
-            model_ckpt = "./screenrecognition-web350k-vins.ckpt"
-        else:
-            raise Exception(
-                f"`model` takes 'interactable-detector', 'web7kbal', 'web350k' or 'vins', got {model}"
-            )
-
+        self.get_model_weights(model)
+        m = UIElementDetector.load_from_checkpoint(self.model_weights_path).eval()
+        
         img_input = self.transforms(self.image.copy().convert("RGB"))
-
-        m = UIElementDetector.load_from_checkpoint(model_ckpt).eval()
         output_bbox_pred = m.model([img_input])
-
         bbox_preds_all = output_bbox_pred[0]["boxes"].tolist()
         bbox_scores = output_bbox_pred[0]["scores"].detach().numpy()
 
@@ -177,7 +190,7 @@ class Shortlister:
         if show_image:
             imgcpy.show()
         if save_image:
-            imgcpy.save("./shortlist_images/" + save_image + ".png")
+            imgcpy.save(os.path.join(self.base_dir, "./shortlist_images/" + save_image + ".png"))
 
     def get_shortlist(
         self,
@@ -187,10 +200,10 @@ class Shortlister:
         nms_iou_threshold: float = 0.2,
         show_image: bool = False,
         save_image: bool = False,
-    ):
+    ) -> list[list[int | float]]:
         """Get shortlist of interactable bbox to show, based on shortlisting method"""
         if not os.path.exists("./shortlist_images/"):
-            os.mkdir("./shortlist_images/")
+            os.makedirs("./shortlist_images/")
         self.get_image_ocr_by_uuid(uuid, show_image, save_image)
         if shortlist_method == "ocr":
             self.shortlist_ocr(
@@ -206,6 +219,8 @@ class Shortlister:
         if show_image or save_image:
             if save_image:
                 save_name = f"image_shortlist_{shortlist_method}_{uuid}"
+            else:
+                save_name = None
             self.draw_bbox(shortlist_method, show_image, save_name)
 
         return self.shortlist_bbox[shortlist_method]
@@ -213,7 +228,9 @@ class Shortlister:
 
 if __name__ == "__main__":
     shortlister = Shortlister()
-    uuid = "0a09f4fba5ae430c97c0c1d8c74301c8"
+    #uuid = "0a09f4fba5ae430c97c0c1d8c74301c8"
+    #uuid = "71be3393ed0c4c24b5740b76a9ebab41"
+    uuid = "73402d98b7b643d09f32c4200ad37eed"
     shortlister.get_shortlist(uuid, "ocr", save_image=True)
     shortlister.get_shortlist(uuid, "interactable-detector", save_image=True)
     shortlister.get_shortlist(uuid, "web7kbal", save_image=True, shortlist_threshold=0.1)
