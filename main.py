@@ -1,10 +1,13 @@
 from collections import defaultdict
 import csv
 import random
+from typing import overload
+from bson import ObjectId
 import click
+import numpy as np
 from tqdm import tqdm
 from Explorer.db.mongo_db import MongoDBInterface
-from Explorer.db.mongo_db_types import OCRModel, Platform
+from Explorer.db.mongo_db_types import ImageTextContent, OCRModel, Platform
 from Explorer.io.recorder import Recorder
 from Explorer.io.scanner import Scanner
 from Explorer.io.scrapper import Scrapper, count_profiles, first_level_uris, generate_scanning_links, most_referenced, most_referenced_first_level_uris, show_graph
@@ -21,11 +24,20 @@ from imagehash import average_hash
 from Explorer.io.selenium_scanner import SeleniumScanner
 from Explorer.ocr.ocr import KhanOCR
 from Explorer.io.snapshot_grabber import SnapshotGrabber
+from Explorer.tf_idf.tf_idf import Index as TFIDF_Index
+from Explorer.tf_idf.tokenizer import Tokenizer as TFIDF_Tokenizer
+from Explorer.tf_idf.filters import LowerCaseFilter as TFIDF_LowerCaseFilter
+from Explorer.tf_idf.filters import SpellingFilterWithReplacement as TFIDF_SpellingFilterWithReplacement
+from Explorer.tf_idf.filters import SpellingFilterWithoutReplacement as TFIDF_SpellingFilterWithoutReplacement
+import seaborn as sns
+import matplotlib.pylab as plt
+
+def from_dict_list(_type, data: list) -> list:
+    return [from_dict(_type, d) for d in data]
 
 @click.group()
 def main() -> None:
     pass
-
 
 @click.command()
 def hello_world() -> None:
@@ -295,6 +307,52 @@ def add_ocr_data():
         db_ocr.append(db_image_ocr)
     insert_ids_ocr = MongoDBInterface.add_items(db_ocr, "image-text-content")
 
+
+@click.command()
+def analyse_ocr():
+    MongoDBInterface.connect()
+    ocr_model = list(MongoDBInterface.get_items({"version":"0.1.0"}, "ocr-models"))[0]
+    ocr_version = ocr_model['version']
+
+    ocr_data = MongoDBInterface.get_items({"ocr_version":ocr_version}, "image-text-content")
+    ocr_data: list[ImageTextContent] = from_dict_list(ImageTextContent, ocr_data)
+
+    confidence_threshold = 0
+    ocr_text = {}
+    for d in ocr_data:
+        filtered_text = [t for t, c in zip(d.text, d.confidence) if c > confidence_threshold]
+        text = " ".join(filtered_text)
+        ocr_text[d.screenshot_id] = text
+    
+    tokenizer = TFIDF_Tokenizer(
+        [" ","+","[","]",":","_","|","$",",","-",".","?","!",],
+        [TFIDF_LowerCaseFilter],
+        1
+    )
+    index = TFIDF_Index.index_data(ocr_text, tokenizer)
+    depth = -1
+    matches = index.find_all_to_all_match(depth = depth)
+    match_array = np.array([[score for _, score in sorted(match.items())] for _, match in sorted(matches.items())])
+    labels = [id for id, _ in sorted(matches.items())]
+    print(f" t = {confidence_threshold}, depth = {depth}, rms = {np.std(match_array)}")
+
+    ax = sns.heatmap(match_array, xticklabels = labels, yticklabels = labels)
+    plt.title(f"depth = {depth}, threshold = {confidence_threshold}")
+    plt.show()
+
+@click.command()
+@click.argument("id")
+def show_image_by_id(id):
+    _id = ObjectId(id)
+
+    MongoDBInterface.connect()
+    screenshot = MongoDBInterface.get_items({"_id":_id}, "screenshots").limit(1)
+    screenshot = list(screenshot)[0]
+    image = screenshot["image"]
+    image = Image.open(io.BytesIO(image))
+    image.show()
+
+
 main.add_command(hello_world)
 main.add_command(record)
 main.add_command(scan)
@@ -308,6 +366,8 @@ main.add_command(visualise)
 main.add_command(generate_splits)
 main.add_command(print_database)
 main.add_command(add_ocr_data)
+main.add_command(analyse_ocr)
+main.add_command(show_image_by_id)
 
 
 if __name__ == "__main__":
