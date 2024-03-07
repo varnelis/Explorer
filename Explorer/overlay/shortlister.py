@@ -224,15 +224,3 @@ class Shortlister:
             self.draw_bbox(shortlist_method, show_image, save_name)
 
         return self.shortlist_bbox[shortlist_method]
-
-
-if __name__ == "__main__":
-    shortlister = Shortlister()
-    #uuid = "0a09f4fba5ae430c97c0c1d8c74301c8"
-    #uuid = "71be3393ed0c4c24b5740b76a9ebab41"
-    uuid = "73402d98b7b643d09f32c4200ad37eed"
-    shortlister.get_shortlist(uuid, "ocr", save_image=True)
-    shortlister.get_shortlist(uuid, "interactable-detector", save_image=True)
-    shortlister.get_shortlist(uuid, "web7kbal", save_image=True, shortlist_threshold=0.1)
-    shortlister.get_shortlist(uuid, "web350k", save_image=True, shortlist_threshold=0.1)
-    shortlister.get_shortlist(uuid, "vins", save_image=True, shortlist_threshold=0.3)
