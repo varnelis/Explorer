@@ -66,14 +66,18 @@ class Shortlister:
     def get_model_weights(self, model: InteractableModel) -> None:
         """ Get file for weights of the model (local or from mongodb) """
         
-        self.model2file = {"web7kbal": "screenrecognition-web7kbal.ckpt",
-                           "web350k": "screenrecognition-web350k.ckpt",
-                           "vins": "screenrecognition-web350k-vins.ckpt",
-                           "interactable-detector": "screenrecognition-interactdetect.ckpt",}
-        self.model2version = {"web7kbal": "v0.1.0",
-                              "web350k": "v0.2.0",
-                              "vins": "v0.3.0",
-                              "interactable-detector": "v0.4.0",}
+        self.model2file = {
+            "web7kbal": "screenrecognition-web7kbal.ckpt",
+            "web350k": "screenrecognition-web350k.ckpt",
+            "vins": "screenrecognition-web350k-vins.ckpt",
+            "interactable-detector": "screenrecognition-interactdetect.ckpt",
+        }
+        self.model2version = {
+            "web7kbal": "v0.1.0",
+            "web350k": "v0.2.0",
+            "vins": "v0.3.0",
+            "interactable-detector": "v0.4.0",
+        }
         
         MongoDBInterface.connect()
         weights = MongoDBInterface.get_items({"version": self.model2version[model]}, "detectors").limit(1)
@@ -224,15 +228,3 @@ class Shortlister:
             self.draw_bbox(shortlist_method, show_image, save_name)
 
         return self.shortlist_bbox[shortlist_method]
-
-
-if __name__ == "__main__":
-    shortlister = Shortlister()
-    #uuid = "0a09f4fba5ae430c97c0c1d8c74301c8"
-    #uuid = "71be3393ed0c4c24b5740b76a9ebab41"
-    uuid = "73402d98b7b643d09f32c4200ad37eed"
-    shortlister.get_shortlist(uuid, "ocr", save_image=True)
-    shortlister.get_shortlist(uuid, "interactable-detector", save_image=True)
-    shortlister.get_shortlist(uuid, "web7kbal", save_image=True, shortlist_threshold=0.1)
-    shortlister.get_shortlist(uuid, "web350k", save_image=True, shortlist_threshold=0.1)
-    shortlister.get_shortlist(uuid, "vins", save_image=True, shortlist_threshold=0.3)
