@@ -66,14 +66,18 @@ class Shortlister:
     def get_model_weights(self, model: InteractableModel) -> None:
         """ Get file for weights of the model (local or from mongodb) """
         
-        self.model2file = {"web7kbal": "screenrecognition-web7kbal.ckpt",
-                           "web350k": "screenrecognition-web350k.ckpt",
-                           "vins": "screenrecognition-web350k-vins.ckpt",
-                           "interactable-detector": "screenrecognition-interactdetect.ckpt",}
-        self.model2version = {"web7kbal": "v0.1.0",
-                              "web350k": "v0.2.0",
-                              "vins": "v0.3.0",
-                              "interactable-detector": "v0.4.0",}
+        self.model2file = {
+            "web7kbal": "screenrecognition-web7kbal.ckpt",
+            "web350k": "screenrecognition-web350k.ckpt",
+            "vins": "screenrecognition-web350k-vins.ckpt",
+            "interactable-detector": "screenrecognition-interactdetect.ckpt",
+        }
+        self.model2version = {
+            "web7kbal": "v0.1.0",
+            "web350k": "v0.2.0",
+            "vins": "v0.3.0",
+            "interactable-detector": "v0.4.0",
+        }
         
         MongoDBInterface.connect()
         weights = MongoDBInterface.get_items({"version": self.model2version[model]}, "detectors").limit(1)

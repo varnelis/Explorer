@@ -385,12 +385,14 @@ def show_image_by_id(id):
 @click.option("--save", required=False, type=bool, help="Save images of shortlisting")
 @click.option("--shortlist_threshold", required=False, default=0.5, type=float, help="Lower threshold for interactables")
 @click.option("--nms_iou_threshold", required=False, default=0.2, type=float, help="Upper threshold for IoU NMS")
-def shortlist_image_bbox(uuid: str, 
-                         model: Literal["ocr", "interactable-detector", "web7kbal", "web350k", "vins"], 
-                         shortlist_threshold: float,
-                         nms_iou_threshold: float,
-                         save: bool):
-    shortlister = Shortlister(base_dir='./Explorer/audionav_shortlister/')
+def shortlist_image_bbox(
+    uuid: str, 
+    model: Literal["ocr", "interactable-detector", "web7kbal", "web350k", "vins"], 
+    shortlist_threshold: float,
+    nms_iou_threshold: float,
+    save: bool
+):
+    shortlister = Shortlister(base_dir='')
     shortlist_bbox = shortlister.get_shortlist(uuid, model, shortlist_threshold, nms_iou_threshold, save_image=save)
 
 
