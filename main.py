@@ -392,11 +392,10 @@ def shortlist_image_bbox(
     shortlister.set_img(img)
 
     shortlister.set_model("ocr").set_bboxes().save()
-    print(len(shortlister.bboxes))
-    #shortlister.set_model("interactable-detector").set_bboxes().save()
-    #shortlister.set_model("vins").set_bboxes().save()
-    #shortlister.set_model("web350k").set_bboxes().save()
-    #shortlister.set_model("web7kbal").set_bboxes().save()
+    shortlister.set_model("interactable-detector").set_bboxes().save()
+    shortlister.set_model("vins").set_bboxes().save()
+    shortlister.set_model("web350k").set_bboxes().save()
+    shortlister.set_model("web7kbal").set_bboxes().save()
 
 
 main.add_command(hello_world)
