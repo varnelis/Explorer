@@ -167,3 +167,4 @@ temp/
 .DS_Store
 *.csv
 *.npz
+*.ckpt
