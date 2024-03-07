@@ -16,16 +16,54 @@ import torch
 from typing import Literal
 
 
+class OCR:
+
+    reader = easyocr.Reader(['en'])
+    initialised = False
+
+    def __init__(self):
+        self._init_nltk()
+    
+    @classmethod
+    def _init_nltk(cls):
+        nltk.download('punkt')
+        nltk.download('averaged_perceptron_tagger')
+        nltk.download('wordnet')
+        cls.initialised = True
+    
+    @classmethod
+    def get_text(cls, img: Image.Image) -> tuple[list[str], list[tuple[int, int, int, int], list[float]]]:
+        if cls.initialised is False:
+            cls._init_nltk()
+
+        np_img = np.array(img)
+        ocr_reader = cls.reader.readtext(np_img)
+        text = []
+        bboxes = []
+        confidence = []
+        for s in ocr_reader:
+            left = int(s[0][0][0])
+            top = int(s[0][0][1])
+            right = int(s[0][2][0])
+            bottom = int(s[0][2][1])
+            box_text = s[1]
+            box_confidence = s[2]
+
+            text.append(box_text)
+            bboxes.append((left, top, right, bottom))
+            confidence.append(box_confidence)
+
+        return text, bboxes, confidence
 
 class KhanOCR:
 
     def __init__(self,
-                 img_paths_file: str = "selenium_scans/metadata/domain_map.json",
-                 uuid2ocr_file: str = "selenium_scans/metadata/uuid2ocr_base.json",
-                 uuid2ocr_file_processed: str = "selenium_scans/metadata/uuid2ocr_processed_thres50.json",
-                 uuid2graph_file: str = "selenium_scans/metadata/uuid2graph.json",
-                 compare_embedding_file: str = "selenium_scans/metadata/ocr_compare_embeddings",
-                 ):
+        img_paths_file: str = "selenium_scans/metadata/domain_map.json",
+        uuid2ocr_file: str = "selenium_scans/metadata/uuid2ocr_base.json",
+        uuid2ocr_file_processed: str = "selenium_scans/metadata/uuid2ocr_processed_thres50.json",
+        uuid2graph_file: str = "selenium_scans/metadata/uuid2graph.json",
+        compare_embedding_file: str = "selenium_scans/metadata/ocr_compare_embeddings",
+    ):
         super().__init__()
 
         self.img_paths_file = img_paths_file
