@@ -17,9 +17,11 @@ import json
 import io
 import uuid
 
+from typing import Literal
 from dacite import from_dict
 from PIL import Image
 from imagehash import average_hash
+from datetime import datetime
 
 from Explorer.io.selenium_scanner import SeleniumScanner
 from Explorer.ocr.ocr import KhanOCR
@@ -29,6 +31,8 @@ from Explorer.tf_idf.tokenizer import Tokenizer as TFIDF_Tokenizer
 from Explorer.tf_idf.filters import LowerCaseFilter as TFIDF_LowerCaseFilter
 from Explorer.tf_idf.filters import SpellingFilterWithReplacement as TFIDF_SpellingFilterWithReplacement
 from Explorer.tf_idf.filters import SpellingFilterWithoutReplacement as TFIDF_SpellingFilterWithoutReplacement
+from Explorer.overlay.shortlister import Shortlister
+
 import seaborn as sns
 import matplotlib.pylab as plt
 
@@ -252,6 +256,27 @@ def print_database():
         print(f"text {ocr[i]['text']}")
         print(f"confidence {ocr[i]['confidence']}")
     '''
+
+
+@click.command()
+def add_model_weights():
+    MongoDBInterface.connect()
+    model2version = {"web7kbal":"v0.1.0", "web350k":"v0.2.0", "vins":"v0.3.0", "interactable-detector":"v0.4.0"}
+    gdrive_urls = {"web7kbal":"https://drive.google.com/file/d/1QQVmG6u4jgmptT-iMJdS_ESdEWwuC9U2/view?usp=sharing", 
+                   "web350k":"https://drive.google.com/file/d/1WwgONDUkrQSc8NwokL1ePJ_OA3NQh17t/view?usp=sharing", 
+                   "vins":"https://drive.google.com/file/d/16a-_TKxAaVYTuWeAdTJVWNW5LXLBeNuY/view?usp=sharing", 
+                   "interactable-detector":"https://drive.google.com/file/d/1C_GKcmW8WdDNpVN4eNQdqWCKJ--hct19/view?usp=sharing"}
+    detector_items = []
+    for model in model2version:
+        item = {"version": model2version[model], 
+                "datetime": datetime.now(), 
+                "url": gdrive_urls[model],
+                "metadata": {'model-name': model},
+                }
+        detector_items.append(item)
+
+    MongoDBInterface.add_items(detector_items, "detectors")
+
     
 
 @click.command()
@@ -340,6 +365,7 @@ def analyse_ocr():
     plt.title(f"depth = {depth}, threshold = {confidence_threshold}")
     plt.show()
 
+
 @click.command()
 @click.argument("id")
 def show_image_by_id(id):
@@ -351,6 +377,21 @@ def show_image_by_id(id):
     image = screenshot["image"]
     image = Image.open(io.BytesIO(image))
     image.show()
+
+
+@click.command()
+@click.option("--uuid", required=True, type=str, help="UUID to get interactable shortlist")
+@click.option("--model", required=True, type=str, help="Model for interactable shortlist")
+@click.option("--save", required=False, type=bool, help="Save images of shortlisting")
+@click.option("--shortlist_threshold", required=False, default=0.5, type=float, help="Lower threshold for interactables")
+@click.option("--nms_iou_threshold", required=False, default=0.2, type=float, help="Upper threshold for IoU NMS")
+def shortlist_image_bbox(uuid: str, 
+                         model: Literal["ocr", "interactable-detector", "web7kbal", "web350k", "vins"], 
+                         shortlist_threshold: float,
+                         nms_iou_threshold: float,
+                         save: bool):
+    shortlister = Shortlister(base_dir='./Explorer/audionav_shortlister/')
+    shortlist_bbox = shortlister.get_shortlist(uuid, model, shortlist_threshold, nms_iou_threshold, save_image=save)
 
 
 main.add_command(hello_world)
@@ -365,9 +406,11 @@ main.add_command(generate_scanning_json)
 main.add_command(visualise)
 main.add_command(generate_splits)
 main.add_command(print_database)
+main.add_command(add_model_weights)
 main.add_command(add_ocr_data)
 main.add_command(analyse_ocr)
 main.add_command(show_image_by_id)
+main.add_command(shortlist_image_bbox)
 
 
 if __name__ == "__main__":
