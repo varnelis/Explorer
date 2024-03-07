@@ -35,6 +35,7 @@ imagehash = "^4.3.1"
 mss = "^9.0.1"
 seaborn = "^0.13.2"
 pyspellchecker = "^0.8.1"
+pyqt5 = "^5.15.10"
 
 [tool.black]
 line-length = 88
