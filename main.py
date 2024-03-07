@@ -380,20 +380,23 @@ def show_image_by_id(id):
 
 
 @click.command()
-@click.option("--uuid", required=True, type=str, help="UUID to get interactable shortlist")
-@click.option("--model", required=True, type=str, help="Model for interactable shortlist")
-@click.option("--save", required=False, type=bool, help="Save images of shortlisting")
 @click.option("--shortlist_threshold", required=False, default=0.5, type=float, help="Lower threshold for interactables")
 @click.option("--nms_iou_threshold", required=False, default=0.2, type=float, help="Upper threshold for IoU NMS")
 def shortlist_image_bbox(
-    uuid: str, 
-    model: Literal["ocr", "interactable-detector", "web7kbal", "web350k", "vins"], 
     shortlist_threshold: float,
     nms_iou_threshold: float,
-    save: bool
 ):
-    shortlister = Shortlister(base_dir='')
-    shortlist_bbox = shortlister.get_shortlist(uuid, model, shortlist_threshold, nms_iou_threshold, save_image=save)
+    img = Image.open("./shortlist_images/image_raw.png")
+    shortlister = Shortlister()
+
+    shortlister.set_img(img)
+
+    shortlister.set_model("ocr").set_bboxes().save()
+    print(len(shortlister.bboxes))
+    #shortlister.set_model("interactable-detector").set_bboxes().save()
+    #shortlister.set_model("vins").set_bboxes().save()
+    #shortlister.set_model("web350k").set_bboxes().save()
+    #shortlister.set_model("web7kbal").set_bboxes().save()
 
 
 main.add_command(hello_world)
