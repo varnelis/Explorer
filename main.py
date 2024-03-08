@@ -24,14 +24,14 @@ from imagehash import average_hash
 from datetime import datetime
 
 from Explorer.io.selenium_scanner import SeleniumScanner
-#from Explorer.ocr.ocr import KhanOCR
+from Explorer.ocr.ocr import KhanOCR
 from Explorer.io.snapshot_grabber import SnapshotGrabber
 from Explorer.tf_idf.tf_idf import Index as TFIDF_Index
 from Explorer.tf_idf.tokenizer import Tokenizer as TFIDF_Tokenizer
 from Explorer.tf_idf.filters import LowerCaseFilter as TFIDF_LowerCaseFilter
 from Explorer.tf_idf.filters import SpellingFilterWithReplacement as TFIDF_SpellingFilterWithReplacement
 from Explorer.tf_idf.filters import SpellingFilterWithoutReplacement as TFIDF_SpellingFilterWithoutReplacement
-#from Explorer.overlay.shortlister import Shortlister
+from Explorer.overlay.shortlister import Shortlister
 from Explorer.speech.speech2text import Speech2Text
 
 import seaborn as sns
