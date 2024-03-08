@@ -1,6 +1,7 @@
 from collections import defaultdict
 import csv
 import random
+import sys
 from typing import overload
 from bson import ObjectId
 import click
@@ -24,6 +25,7 @@ from imagehash import average_hash
 from datetime import datetime
 
 from Explorer.io.selenium_scanner import SeleniumScanner
+from Explorer.objectives.objective_1 import Objective, Objective1
 from Explorer.ocr.ocr import KhanOCR
 from Explorer.io.snapshot_grabber import SnapshotGrabber
 from Explorer.tf_idf.tf_idf import Index as TFIDF_Index
@@ -36,6 +38,8 @@ from Explorer.speech.speech2text import Speech2Text
 
 import seaborn as sns
 import matplotlib.pylab as plt
+
+from PyQt5.QtWidgets import QApplication
 
 def from_dict_list(_type, data: list) -> list:
     return [from_dict(_type, d) for d in data]
@@ -398,6 +402,12 @@ def shortlist_image_bbox(
     shortlister.set_model("web350k").set_bboxes().save()
     shortlister.set_model("web7kbal").set_bboxes().save()
 
+@click.command()
+def objective_1():
+    qt_app = QApplication(sys.argv)
+    app = Objective()
+    app.show()
+    qt_app.exec_()
 
 @click.command()
 def speech_execution():
@@ -433,6 +443,7 @@ main.add_command(analyse_ocr)
 main.add_command(show_image_by_id)
 main.add_command(shortlist_image_bbox)
 main.add_command(speech_execution)
+main.add_command(objective_1)
 
 
 if __name__ == "__main__":
