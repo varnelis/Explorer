@@ -39,7 +39,7 @@ class Speech2Text:
         if self.commands[1] in user_command: # click action
             try:
                 self.user_current_phrase = self.commands[1]
-                self.click_num = user_command.split(' ')[1]
+                self.click_num = self._text2int(user_command.split(' ')[1])
             except IndexError as e:
                 print('Invalid `click` command. ', str(e))
         elif (self.commands[0] in user_command) or (self.commands[2] in user_command):
@@ -47,6 +47,9 @@ class Speech2Text:
             self.click_num = None
 
     def _text2int(self, textnum: str, numwords: dict = {}):
+        if textnum.isdigit():
+            return int(textnum)
+
         if not numwords:
             units = [
                 "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
