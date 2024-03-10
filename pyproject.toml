@@ -54,3 +54,6 @@ max-complexity = 10
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry2conda]
+name="explorer-conda"
