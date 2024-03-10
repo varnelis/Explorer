@@ -419,8 +419,8 @@ def speech_execution():
 
     import time
     speech2text.listen()
-    for _ in range(10):
-        time.sleep(5)
+    while 1: #for _ in range(10):
+        time.sleep(1)
         speech2text.disp()
     speech2text.stop_listen()
 

@@ -2,6 +2,7 @@ import speech_recognition as sr
 from typing import Union, Literal, Any
 from collections.abc import Callable
 import time
+import re
 
 
 class Speech2Text:
@@ -54,7 +55,7 @@ class Speech2Text:
         Detects audio and converts to text with Google Speech Recognition. """
         try:
             # using the default API key; look at `r.recognize_google(audio, key="GOOGLE_SPEECH_RECOGNITION_API_KEY")`
-            user_command = recognizer.recognize_google(audio)
+            user_command = recognizer.recognize_whisper(audio)       #recognize_google(audio)
         except sr.UnknownValueError:
             print("Google Speech Recognition could not understand audio")
             return None
@@ -62,14 +63,15 @@ class Speech2Text:
             print("Could not request results from Google Speech Recognition service; {0}".format(e))
             return None
         
-        detected_command = set(self.commands) & set(user_command.split(' '))
+        user_command = re.sub(r'[^\w]', ' ', user_command.lower())
+        detected_command = set(self.commands) & set([i for i in user_command.split(' ') if i!=""])
         if len(detected_command) == 1:
             """ One of the valid commands detected """
             detected_command = list(detected_command)[0]
             # set params
             if detected_command == "click":
                 try:
-                    self.click_num = self._text2int(user_command.split(' ')[1])
+                    self.click_num = self._text2int([i for i in user_command.split(' ') if i!=""][1])
                 except IndexError as e:
                     print('Invalid `click` command. ', str(e))
                     return None
