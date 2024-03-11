@@ -42,7 +42,6 @@ gdown = "^5.1.0"
 speechrecognition = "^3.10.1"
 pyaudio = "^0.2.14"
 soundfile = "^0.12.1"
-whisper = "^1.1.10"
 
 [tool.black]
 line-length = 88
