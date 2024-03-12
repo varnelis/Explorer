@@ -2,7 +2,6 @@ from collections import defaultdict
 import csv
 import random
 import sys
-from typing import overload
 from bson import ObjectId
 import click
 import numpy as np
@@ -13,26 +12,20 @@ from Explorer.io.recorder import Recorder
 from Explorer.io.scanner import Scanner
 from Explorer.io.scrapper import Scrapper, count_profiles, first_level_uris, generate_scanning_links, most_referenced, most_referenced_first_level_uris, show_graph
 import time
-import cProfile
 import json
 import io
-import uuid
-
-from typing import Literal
 from dacite import from_dict
 from PIL import Image
 from imagehash import average_hash
 from datetime import datetime
 
 from Explorer.io.selenium_scanner import SeleniumScanner
-from Explorer.objectives.objective_1 import Objective, Objective1
+from Explorer.objectives.objective_1 import Objective
 from Explorer.ocr.ocr import KhanOCR
 from Explorer.io.snapshot_grabber import SnapshotGrabber
 from Explorer.tf_idf.tf_idf import Index as TFIDF_Index
 from Explorer.tf_idf.tokenizer import Tokenizer as TFIDF_Tokenizer
 from Explorer.tf_idf.filters import LowerCaseFilter as TFIDF_LowerCaseFilter
-from Explorer.tf_idf.filters import SpellingFilterWithReplacement as TFIDF_SpellingFilterWithReplacement
-from Explorer.tf_idf.filters import SpellingFilterWithoutReplacement as TFIDF_SpellingFilterWithoutReplacement
 from Explorer.overlay.shortlister import Shortlister
 from Explorer.speech.speech2text import Speech2Text
 
@@ -40,6 +33,8 @@ import seaborn as sns
 import matplotlib.pylab as plt
 
 from PyQt5.QtWidgets import QApplication
+from PyQt5.QtGui import QKeyEvent
+from PyQt5.QtCore import QEvent, Qt
 
 def from_dict_list(_type, data: list) -> list:
     return [from_dict(_type, d) for d in data]
@@ -405,9 +400,35 @@ def shortlist_image_bbox(
 @click.command()
 def objective_1():
     qt_app = QApplication(sys.argv)
-    app = Objective()
+    app = Objective("interactable-detector")
     app.show()
+
+    speech2text = Speech2Text(disable_warnings=True)
+    speech2text.attach_exec(
+        exec_func = lambda : QApplication.postEvent(
+            app,
+            QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier)
+        ),
+        target = "show"
+    )
+    speech2text.attach_exec(
+        exec_func = lambda idx: QApplication.postEvent(
+            app,
+            QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Space, Qt.KeyboardModifier.NoModifier, text = str(idx))
+        ),
+        target = "click"
+    )
+    speech2text.attach_exec(
+        exec_func = lambda : QApplication.postEvent(
+            app,
+            QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier)
+        ),
+        target = "stop"
+    )
+    speech2text.listen()
+
     qt_app.exec_()
+    #speech2text.stop_listen()
 
 @click.command()
 def speech_execution():
@@ -417,7 +438,6 @@ def speech_execution():
     #speech2text.attach_exec(exec_func=None, target='click')
     #speech2text.attach_exec(exec_func=None, target='stop')
 
-    import time
     speech2text.listen()
     while 1: #for _ in range(10):
         time.sleep(1)
