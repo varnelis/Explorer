@@ -411,7 +411,7 @@ def objective_1():
 
 @click.command()
 def speech_execution():
-    speech2text = Speech2Text(disable_warnings=True)
+    speech2text = Speech2Text(verbose=False)
     
     #speech2text.attach_exec(exec_func=None, target='show')
     #speech2text.attach_exec(exec_func=None, target='click')
