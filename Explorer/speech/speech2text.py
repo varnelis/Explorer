@@ -1,56 +1,61 @@
+from enum import StrEnum
 import speech_recognition as sr
-from typing import Union, Literal, Any
+from typing import Any
 from collections.abc import Callable
 import time
 import re
 
 
+class CommandPhrases(StrEnum):
+    """ Definitions of actions to listen for """
+    SHOW = "show"
+    CLICK = "click"
+    STOP = "stop"
+
 class Speech2Text:
 
-    def __init__(self, disable_warnings: bool = False) -> None:
-        super(Speech2Text).__init__()
-        
+    def __init__(self, verbose: bool = False) -> None:        
         self.rec = sr.Recognizer()
         self.mic = sr.Microphone()
         with self.mic as source:
             self.rec.adjust_for_ambient_noise(source) # calibrate
-
-        self.user_current_phrase: str = None # updated with current phrase
+        self.user_current_phrase: CommandPhrases = None # updated with current phrase
         self.click_num: int = None
-        self.disable_warnings = disable_warnings
-
-        self.command_phrases = {
-                                "show": 0,
-                                "click": 1,
-                                "stop": 2,
-                                }
-        self.commands = list(self.command_phrases.keys())
-
-        self._executors: dict[Callable[[Any], None]] = {
-            "show": None,
-            "click": None,
-            "stop": None,
-        }
+        self.verbose = verbose
+        self.commands = [
+            CommandPhrases.SHOW.value,
+            CommandPhrases.CLICK.value,
+            CommandPhrases.STOP.value,
+        ]
+        self._executors: dict[CommandPhrases, Callable[[Any]]] = {}
 
     def attach_exec(
-        self, exec_func, target: Literal["show", "click", "stop"]
+        self, exec_func: Callable, target: CommandPhrases
     ):
-        if target not in self._executors.keys():
+        if not isinstance(target, CommandPhrases):
             raise ValueError(f"target {target} does not exist in Speech2Text updaters list")
         self._executors[target] = exec_func
 
     def execute(self):
-        if self.user_current_phrase == None:
-            #print('no user current phrase')
-            return -1
-        if self._executors[self.user_current_phrase] == None:
-            #print('no executor')
-            return -2
-        exec = self._executors[self.user_current_phrase]
-        exec(click=self.click_num) # call func to click on this num
-        return 0
+        try:
+            exec = self._executors[self.user_current_phrase]
+        except KeyError:
+            if self.verbose == True:
+                raise RuntimeWarning('No executor attached to this action. No execution.')
+            return
+        
+        if self.user_current_phrase == CommandPhrases.CLICK:
+            exec(self.click_num)
+        elif (
+            self.user_current_phrase == CommandPhrases.SHOW or 
+            self.user_current_phrase == CommandPhrases.STOP
+        ):
+            exec()
+        else:
+            raise RuntimeError('No phrase registered. user_current_phrase = None.')
+        return
 
-    def callback(self, recognizer, audio) -> Union[int | None]:
+    def callback(self, recognizer, audio) -> int | None:
         """ Interrupt Service Routine on user-spoken phrases detected by background listener.
         Detects audio and converts to text with Google Speech Recognition. """
         try:
@@ -63,31 +68,29 @@ class Speech2Text:
             print("Could not request results from Google Speech Recognition service; {0}".format(e))
             return None
         
+        print('detected: ', user_command)
         user_command = re.sub(r'[^\w]', ' ', user_command.lower())
         detected_command = set(self.commands) & set([i for i in user_command.split(' ') if i!=""])
-        if len(detected_command) == 1:
-            """ One of the valid commands detected """
-            detected_command = list(detected_command)[0]
-            # set params
-            if detected_command == "click":
-                try:
-                    self.click_num = self._text2int([i for i in user_command.split(' ') if i!=""][1])
-                except IndexError as e:
-                    print('Invalid `click` command. ', str(e))
-                    return None
-            else:
-                self.click_num = None
-            self.user_current_phrase = detected_command
-            # execute attached func
-            status = self.execute()
-            if (status == -1) and (self.disable_warnings == False):
-                raise RuntimeWarning('No phrase registered. user_current_phrase = None.')
-            elif (status == -2) and (self.disable_warnings == False):
-                raise RuntimeWarning('No executor attached to this action. No execution.')
-            return status
-        else:
+        
+        if len(detected_command) != 1:
             print('No valid command detected.')
             return None
+
+        # One of the valid commands detected
+        detected_command = list(detected_command)[0]
+        # set params
+        if detected_command == "click":
+            try:
+                self.click_num = self._text2int([i for i in user_command.split(' ') if i!=""][1])
+            except IndexError as e:
+                print('Invalid `click` command. ', str(e))
+                return None
+        else:
+            self.click_num = None
+        self.user_current_phrase = CommandPhrases(detected_command)
+        # execute attached func
+        self.execute()
+        return None
 
     def _text2int(self, textnum: str, numwords: dict = {}):
         """ Convert written numbers (e.g. either '1' or 'one') to int format (e.g. 1) """
