@@ -36,6 +36,12 @@ mss = "^9.0.1"
 seaborn = "^0.13.2"
 pyspellchecker = "^0.8.1"
 pyqt5 = "^5.15.10"
+mean-average-precision = "^2024.1.5.0"
+pytorch-lightning = "1.9"
+gdown = "^5.1.0"
+speechrecognition = "^3.10.1"
+pyaudio = "^0.2.14"
+soundfile = "^0.12.1"
 
 [tool.black]
 line-length = 88
@@ -47,3 +53,6 @@ max-complexity = 10
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry2conda]
+name="explorer-conda"
