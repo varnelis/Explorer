@@ -425,10 +425,10 @@ def objective_1():
         ),
         target = CommandPhrase.STOP
     )
-    #speech2text.listen()
+    speech2text.listen()
 
     qt_app.exec_()
-    #speech2text.stop_listen()
+    speech2text.stop_listen()
 
 @click.command()
 def speech_execution():
