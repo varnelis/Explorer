@@ -1,7 +1,7 @@
 from collections import defaultdict
 import csv
 import random
-from typing import overload
+import sys
 from bson import ObjectId
 import click
 import numpy as np
@@ -12,25 +12,29 @@ from Explorer.io.recorder import Recorder
 from Explorer.io.scanner import Scanner
 from Explorer.io.scrapper import Scrapper, count_profiles, first_level_uris, generate_scanning_links, most_referenced, most_referenced_first_level_uris, show_graph
 import time
-import cProfile
 import json
 import io
-import uuid
-
 from dacite import from_dict
 from PIL import Image
 from imagehash import average_hash
+from datetime import datetime
 
 from Explorer.io.selenium_scanner import SeleniumScanner
+from Explorer.objectives.objective_1 import Objective
 from Explorer.ocr.ocr import KhanOCR
 from Explorer.io.snapshot_grabber import SnapshotGrabber
 from Explorer.tf_idf.tf_idf import Index as TFIDF_Index
 from Explorer.tf_idf.tokenizer import Tokenizer as TFIDF_Tokenizer
 from Explorer.tf_idf.filters import LowerCaseFilter as TFIDF_LowerCaseFilter
-from Explorer.tf_idf.filters import SpellingFilterWithReplacement as TFIDF_SpellingFilterWithReplacement
-from Explorer.tf_idf.filters import SpellingFilterWithoutReplacement as TFIDF_SpellingFilterWithoutReplacement
+from Explorer.overlay.shortlister import Shortlister
+from Explorer.speech.speech2text import CommandPhrase, Speech2Text
+
 import seaborn as sns
 import matplotlib.pylab as plt
+
+from PyQt5.QtWidgets import QApplication
+from PyQt5.QtGui import QKeyEvent
+from PyQt5.QtCore import QEvent, Qt
 
 def from_dict_list(_type, data: list) -> list:
     return [from_dict(_type, d) for d in data]
@@ -252,6 +256,27 @@ def print_database():
         print(f"text {ocr[i]['text']}")
         print(f"confidence {ocr[i]['confidence']}")
     '''
+
+
+@click.command()
+def add_model_weights():
+    MongoDBInterface.connect()
+    model2version = {"web7kbal":"v0.1.0", "web350k":"v0.2.0", "vins":"v0.3.0", "interactable-detector":"v0.4.0"}
+    gdrive_urls = {"web7kbal":"https://drive.google.com/file/d/1QQVmG6u4jgmptT-iMJdS_ESdEWwuC9U2/view?usp=sharing", 
+                   "web350k":"https://drive.google.com/file/d/1WwgONDUkrQSc8NwokL1ePJ_OA3NQh17t/view?usp=sharing", 
+                   "vins":"https://drive.google.com/file/d/16a-_TKxAaVYTuWeAdTJVWNW5LXLBeNuY/view?usp=sharing", 
+                   "interactable-detector":"https://drive.google.com/file/d/1C_GKcmW8WdDNpVN4eNQdqWCKJ--hct19/view?usp=sharing"}
+    detector_items = []
+    for model in model2version:
+        item = {"version": model2version[model], 
+                "datetime": datetime.now(), 
+                "url": gdrive_urls[model],
+                "metadata": {'model-name': model},
+                }
+        detector_items.append(item)
+
+    MongoDBInterface.add_items(detector_items, "detectors")
+
     
 
 @click.command()
@@ -340,6 +365,7 @@ def analyse_ocr():
     plt.title(f"depth = {depth}, threshold = {confidence_threshold}")
     plt.show()
 
+
 @click.command()
 @click.argument("id")
 def show_image_by_id(id):
@@ -351,6 +377,72 @@ def show_image_by_id(id):
     image = screenshot["image"]
     image = Image.open(io.BytesIO(image))
     image.show()
+
+
+@click.command()
+@click.option("--shortlist_threshold", required=False, default=0.5, type=float, help="Lower threshold for interactables")
+@click.option("--nms_iou_threshold", required=False, default=0.2, type=float, help="Upper threshold for IoU NMS")
+def shortlist_image_bbox(
+    shortlist_threshold: float,
+    nms_iou_threshold: float,
+):
+    img = Image.open("./shortlist_images/image_raw.png")
+    shortlister = Shortlister()
+
+    shortlister.set_img(img)
+
+    shortlister.set_model("ocr").set_bboxes().save()
+    shortlister.set_model("interactable-detector").set_bboxes().save()
+    shortlister.set_model("vins").set_bboxes().save()
+    shortlister.set_model("web350k").set_bboxes().save()
+    shortlister.set_model("web7kbal").set_bboxes().save()
+
+@click.command()
+def objective_1():
+    qt_app = QApplication(sys.argv)
+    app = Objective("interactable-detector")
+    app.show()
+
+    speech2text = Speech2Text()
+    speech2text.attach_exec(
+        exec_func = lambda : QApplication.postEvent(
+            app,
+            QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier)
+        ),
+        target = CommandPhrase.SHOW
+    )
+    speech2text.attach_exec(
+        exec_func = lambda idx: QApplication.postEvent(
+            app,
+            QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Space, Qt.KeyboardModifier.NoModifier, text = str(idx))
+        ),
+        target = CommandPhrase.CLICK
+    )
+    speech2text.attach_exec(
+        exec_func = lambda : QApplication.postEvent(
+            app,
+            QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier)
+        ),
+        target = CommandPhrase.STOP
+    )
+    speech2text.listen()
+
+    qt_app.exec_()
+    speech2text.stop_listen()
+
+@click.command()
+def speech_execution():
+    speech2text = Speech2Text(verbose=False)
+    
+    #speech2text.attach_exec(exec_func=None, target='show')
+    #speech2text.attach_exec(exec_func=None, target='click')
+    #speech2text.attach_exec(exec_func=None, target='stop')
+
+    speech2text.listen()
+    while 1: #for _ in range(10):
+        time.sleep(1)
+        speech2text.disp()
+    speech2text.stop_listen()
 
 
 main.add_command(hello_world)
@@ -365,9 +457,13 @@ main.add_command(generate_scanning_json)
 main.add_command(visualise)
 main.add_command(generate_splits)
 main.add_command(print_database)
+main.add_command(add_model_weights)
 main.add_command(add_ocr_data)
 main.add_command(analyse_ocr)
 main.add_command(show_image_by_id)
+main.add_command(shortlist_image_bbox)
+main.add_command(speech_execution)
+main.add_command(objective_1)
 
 
 if __name__ == "__main__":
