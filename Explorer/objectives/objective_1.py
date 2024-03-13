@@ -19,22 +19,18 @@ class Objective(ScreenOverlay):
 
     def keyPressEvent(self, event: QKeyEvent | None) -> None:
         if event.key() == Qt.Key.Key_Return:
-            if self.overlay_is_on:
-                self.turn_off_overlay()
-            else:
-                self.turn_on_overlay()
+            self.turn_on_overlay()
         elif event.key() == Qt.Key.Key_Escape:
             QtWidgets.qApp.quit()
         elif event.key() == Qt.Key.Key_Space:
-            
-            self.click_pos((150, 150))
+            idx = int(event.text())
+            self.click_bbox(idx)
+            self.turn_off_overlay()
 
     def turn_on_overlay(self):
         self.overlay_is_on = True
         print("setting bounding boxes...")
         self.get_screenshot()
-        bboxes = self.shortlister.set_bboxes().bboxes
-        print(len(bboxes))
         self.bboxes.set_bboxes(self.shortlister.set_bboxes().bboxes)
         self.bboxes.show()
     
@@ -48,10 +44,17 @@ class Objective(ScreenOverlay):
         self.screenshot = ImageGrab.grab(bbox)
         self.shortlister.set_img(self.screenshot)
     
-    def click_pos(self, pos: tuple[float, float]):
+    def click_bbox(self, idx: int):
+        left, top, right, bottom = self.shortlister.bboxes[idx]
+        offset = self.pos()
+        pos = [(left + right) // 2 + offset.x(), (top + bottom) // 2 + offset.y()]
         self.showMinimized()
         QTimer.singleShot(1000, lambda : self._click(pos))
-        QTimer.singleShot(2000, self.showNormal)
+        QTimer.singleShot(2000, self._show_window)
+    
+    def _show_window(self):
+        self.showNormal()
+        self.setFocus()
     
     def _click(self, pos: tuple[float, float]):
         print("clicking...")
