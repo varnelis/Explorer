@@ -27,7 +27,7 @@ from Explorer.tf_idf.tf_idf import Index as TFIDF_Index
 from Explorer.tf_idf.tokenizer import Tokenizer as TFIDF_Tokenizer
 from Explorer.tf_idf.filters import LowerCaseFilter as TFIDF_LowerCaseFilter
 from Explorer.overlay.shortlister import Shortlister
-from Explorer.speech.speech2text import Speech2Text
+from Explorer.speech.speech2text import CommandPhrase, Speech2Text
 
 import seaborn as sns
 import matplotlib.pylab as plt
@@ -403,29 +403,29 @@ def objective_1():
     app = Objective("interactable-detector")
     app.show()
 
-    speech2text = Speech2Text(disable_warnings=True)
+    speech2text = Speech2Text()
     speech2text.attach_exec(
         exec_func = lambda : QApplication.postEvent(
             app,
             QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier)
         ),
-        target = "show"
+        target = CommandPhrase.SHOW
     )
     speech2text.attach_exec(
         exec_func = lambda idx: QApplication.postEvent(
             app,
             QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Space, Qt.KeyboardModifier.NoModifier, text = str(idx))
         ),
-        target = "click"
+        target = CommandPhrase.CLICK
     )
     speech2text.attach_exec(
         exec_func = lambda : QApplication.postEvent(
             app,
             QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier)
         ),
-        target = "stop"
+        target = CommandPhrase.STOP
     )
-    speech2text.listen()
+    #speech2text.listen()
 
     qt_app.exec_()
     #speech2text.stop_listen()

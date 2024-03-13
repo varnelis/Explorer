@@ -61,6 +61,8 @@ class ScreenOverlay(QMainWindow):
         #self.setStyleSheet("background:transparent;")
         self.setWindowOpacity(0.5)
 
+        print(self.pos())
+
         self.bboxes = RectangleWidget([])
         self.setCentralWidget(self.bboxes)
     

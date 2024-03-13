@@ -6,7 +6,7 @@ import time
 import re
 
 
-class CommandPhrases(StrEnum):
+class CommandPhrase(StrEnum):
     """ Definitions of actions to listen for """
     SHOW = "show"
     CLICK = "click"
@@ -19,20 +19,20 @@ class Speech2Text:
         self.mic = sr.Microphone()
         with self.mic as source:
             self.rec.adjust_for_ambient_noise(source) # calibrate
-        self.user_current_phrase: CommandPhrases = None # updated with current phrase
+        self.user_current_phrase: CommandPhrase = None # updated with current phrase
         self.click_num: int = None
         self.verbose = verbose
         self.commands = [
-            CommandPhrases.SHOW.value,
-            CommandPhrases.CLICK.value,
-            CommandPhrases.STOP.value,
+            CommandPhrase.SHOW.value,
+            CommandPhrase.CLICK.value,
+            CommandPhrase.STOP.value,
         ]
-        self._executors: dict[CommandPhrases, Callable[[Any]]] = {}
+        self._executors: dict[CommandPhrase, Callable[[Any]]] = {}
 
     def attach_exec(
-        self, exec_func: Callable, target: CommandPhrases
+        self, exec_func: Callable, target: CommandPhrase
     ):
-        if not isinstance(target, CommandPhrases):
+        if not isinstance(target, CommandPhrase):
             raise ValueError(f"target {target} does not exist in Speech2Text updaters list")
         self._executors[target] = exec_func
 
@@ -44,11 +44,11 @@ class Speech2Text:
                 raise RuntimeWarning('No executor attached to this action. No execution.')
             return
         
-        if self.user_current_phrase == CommandPhrases.CLICK:
+        if self.user_current_phrase == CommandPhrase.CLICK:
             exec(self.click_num)
         elif (
-            self.user_current_phrase == CommandPhrases.SHOW or 
-            self.user_current_phrase == CommandPhrases.STOP
+            self.user_current_phrase == CommandPhrase.SHOW or 
+            self.user_current_phrase == CommandPhrase.STOP
         ):
             exec()
         else:
@@ -87,7 +87,7 @@ class Speech2Text:
                 return None
         else:
             self.click_num = None
-        self.user_current_phrase = CommandPhrases(detected_command)
+        self.user_current_phrase = CommandPhrase(detected_command)
         # execute attached func
         self.execute()
         return None

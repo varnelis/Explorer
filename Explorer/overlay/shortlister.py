@@ -48,7 +48,7 @@ class Shortlister:
 
         self.to_tensor = transforms.ToTensor()
 
-        self.bboxes: list | None = None
+        self.bboxes: list[tuple[int, int, int, int]] | None = None
         self.img_w_bboxes: Image.Image | None = None
         self.model: ShortlisterType | None = None
         self.img: Image.Image | None = None
@@ -104,7 +104,7 @@ class Shortlister:
         self,
         interactable_threshold: float = 0.5,
         nms_iou_threshold: float = 0.2,
-    ) -> None:
+    ) -> list[tuple[int, int, int, int]]:
         """Shortlist based on an interactable detector model (ours or WebUI)
         above confidence interactable_threshold (plus NMS up to nms_iou_threshold)."""
 
@@ -129,7 +129,7 @@ class Shortlister:
         self,
         confidence_threshold: float = 0.5,
         nms_iou_threshold: float = 0.2,
-    ) -> None:
+    ) -> list[tuple[int, int, int, int]]:
         """Shortlist based on all unranked OCR bbox above confidence threshold"""
 
         _, ocr_bboxes, confidence = OCR.get_text(self.img)
@@ -183,7 +183,7 @@ class Shortlister:
             gdown.download(url=url, output=os.path.join("./weights", model_key), fuzzy=True)
         return os.path.join("./weights", model_key)
 
-    def _non_max_suppression(self, bboxes, iou_threshold: float = 0.2):
+    def _non_max_suppression(self, bboxes: tuple[int, int, int, int], iou_threshold: float = 0.2) -> list[tuple[int, int, int, int]]:
         """NMS for bbox predictions on image. Drops low-confidence bbox with IoU overlap > threshold"""
 
         keep_bbox = []
