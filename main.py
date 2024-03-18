@@ -29,7 +29,7 @@ from Explorer.tf_idf.tokenizer import Tokenizer as TFIDF_Tokenizer
 from Explorer.tf_idf.filters import LowerCaseFilter as TFIDF_LowerCaseFilter
 from Explorer.overlay.shortlister import Shortlister
 from Explorer.speech.speech2text import CommandPhrase, Speech2Text
-from Explorer.trace_similarity.trace_similarity import ScreenSimilarity
+from Explorer.trace_similarity.screen_similarity import ScreenSimilarity
 
 import seaborn as sns
 import matplotlib.pylab as plt
