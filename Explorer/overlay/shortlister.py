@@ -52,12 +52,13 @@ class Shortlister:
         self.img_w_bboxes: Image.Image | None = None
         self.model: ShortlisterType | None = None
         self.img: Image.Image | None = None
+        self.shortlister_model: UIElementDetector = None
 
     def set_model(self, model: ShortlisterType) -> "Shortlister":
         self.model = model
         return self
     
-    def set_shortlister_model(self) -> "Shortlister":
+    def load_shortlister_model(self) -> "Shortlister":
         self._get_model_weights(self.model)
         self.shortlister_model = UIElementDetector.load_from_checkpoint(self.model_weights_path)
         return self
@@ -113,7 +114,7 @@ class Shortlister:
         """Shortlist based on an interactable detector model (ours or WebUI)
         above confidence interactable_threshold (plus NMS up to nms_iou_threshold)."""
 
-        self.set_shortlister_model()
+        self.load_shortlister_model()
         self.shortlister_model.eval()
         
         img_input = self.to_tensor(self.img.copy().convert("RGB"))

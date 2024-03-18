@@ -18,6 +18,7 @@ from dacite import from_dict
 from PIL import Image
 from imagehash import average_hash
 from datetime import datetime
+import os
 
 from Explorer.io.selenium_scanner import SeleniumScanner
 from Explorer.objectives.objective_1 import Objective
@@ -447,12 +448,19 @@ def speech_execution():
 
 @click.command()
 def trace_sim():
-    screensim = ScreenSimilarity('selenium_scans/screenshots')
+    def uuid2image(uuid: str) -> Image.Image:
+        path = os.path.join('./selenium_scans/screenshots', uuid + '.png')
+        image = Image.open(path)
+        return image
+
+    screensim = ScreenSimilarity()
     trace_frames = [
         'cd263a3ee2de4b239f913cec26e01b2f', '60108111cf3a4104b52b57d907c85ff0', 'fa0f7067dac845abb3fa50e387d40e46',
         'a050de9a20bd4b18838ffadf8e7700a6', '15d6c0f784864b3a8ba294a80d4c9a00', '405d8166eb864a828fe9d37f13931087',
         '2681a9d5e5be47f28d9f1c861ccdd64c', '8bab9972d17c41e280fc10bdef997226', '817456f70e744ec1a235368d1e88a94c',
     ]
+    for i in range(len(trace_frames)):
+        trace_frames[i] = uuid2image(trace_frames[i])
     screensim.trace_self_similarity(trace_frames)
 
 
