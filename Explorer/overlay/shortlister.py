@@ -56,6 +56,11 @@ class Shortlister:
     def set_model(self, model: ShortlisterType) -> "Shortlister":
         self.model = model
         return self
+    
+    def set_shortlister_model(self) -> "Shortlister":
+        self._get_model_weights(self.model)
+        self.shortlister_model = UIElementDetector.load_from_checkpoint(self.model_weights_path)
+        return self
 
     def set_img(self, img: Image.Image) -> "Shortlister":
         self.img = img
@@ -108,11 +113,11 @@ class Shortlister:
         """Shortlist based on an interactable detector model (ours or WebUI)
         above confidence interactable_threshold (plus NMS up to nms_iou_threshold)."""
 
-        self._get_model_weights(self.model)
-        m = UIElementDetector.load_from_checkpoint(self.model_weights_path).eval()
+        self.set_shortlister_model()
+        self.shortlister_model.eval()
         
         img_input = self.to_tensor(self.img.copy().convert("RGB"))
-        output_bbox_pred = m.model([img_input])
+        output_bbox_pred = self.shortlister_model.model([img_input])
         bbox_preds_all = output_bbox_pred[0]["boxes"].tolist()
         bbox_scores = output_bbox_pred[0]["scores"].detach().numpy()
 
@@ -169,7 +174,6 @@ class Shortlister:
     
     def _get_model_weights(self, model: InteractableModel) -> None:
         """ Get file for weights of the model (local or from mongodb) """
-        
         MongoDBInterface.connect()
         weights = MongoDBInterface.get_items({"version": model2version[model]}, "detectors").limit(1)
         weights = list(weights)[0]
