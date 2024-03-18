@@ -4,18 +4,16 @@ import torch
 from PIL import Image
 from Explorer.db.mongo_db import MongoDBInterface
 from Explorer.trace_similarity.embedding_exploration import Encoder
-from Explorer.trace_similarity.ui_models_khan_centerness_FC import UIScreenEmbedder
+from Explorer.trace_similarity.screensimilarity_model_CenterFPN import UIScreenEmbedder
 
 screensim_version = "v1.0.0"
 model2file = {"screensimilarity": "screensimilarity.ckpt"}
 
 class ScreenSimilarity(Encoder):
 
-    def __init__(self, relative_dir: str = 'selenium_scans/screenshots'):
+    def __init__(self):
         super().__init__()
-        self.relative_dir = relative_dir
         self.weights_dir = 'weights'
-
         if not os.path.exists(self.weights_dir):
             os.makedirs(self.weights_dir)
 
@@ -46,11 +44,6 @@ class ScreenSimilarity(Encoder):
             gdown.download(url=url, output=outpath, fuzzy=True)
         return outpath
 
-    def uuid2image(self, uuid: str) -> Image.Image:
-        path = os.path.join(self.relative_dir, uuid + '.png')
-        image = Image.open(path)
-        return image
-
     def image2embedding(self, image: Image.Image) -> torch.Tensor:
         batch_size = 1
         fpn, center_upsample = self._get_img_features(image)
@@ -68,21 +61,13 @@ class ScreenSimilarity(Encoder):
         preds = dist < thresh
 
         return (dist, preds)
-
-    def trace_self_similarity(self, trace_frames: list[str]) -> list[float]:
+    
+    def trace_self_similarity(self, trace_frames: list[Image.Image]) -> list[float]:
         """ Takes list of trace frame UUIDs/paths and outputs list of consecutive-frame similarity """
         distances = []
-        for img_j in range(1,len(trace_frames)):
-            img_i = img_j - 1
-            uuid1 = trace_frames[img_i]
-            uuid2 = trace_frames[img_j]
-
-            image1 = self.uuid2image(uuid1)
-            image2 = self.uuid2image(uuid2)
-
+        for image1, image2 in zip(trace_frames, trace_frames[1:]):
             embeddings_img1 = self.image2embedding(image1)
             embeddings_img2 = self.image2embedding(image2)
-            
             (dist, preds) = self.embeddings2similarity(embeddings_img1, embeddings_img2)
             distances.append(dist)
         print('Distances: ', distances)

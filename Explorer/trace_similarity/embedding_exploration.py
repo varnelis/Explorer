@@ -22,8 +22,7 @@ class Encoder():
         lr = 0.08
 
         shortlister = Shortlister()
-        shortlister.set_model(model="interactable-detector")
-        shortlister.set_shortlister_model()
+        shortlister.set_model("interactable-detector").load_shortlister_model()
         self.khan_model = shortlister.shortlister_model
 
         self.khan_model.hparams.lr = lr
@@ -31,16 +30,13 @@ class Encoder():
         mod = self.khan_model.model.head.classification_head
         mod.num_classes = FINETUNE_CLASSES
 
-        self.dataloading()
         self.embedding_distances = {}
 
-    def dataloading(self) -> None:
-        ''' TRANSFORM IMAGE '''
+        # Image transforms for input to Interactable Detector model
         image_mean = [0.485, 0.456, 0.406]
         image_std = [0.229, 0.224, 0.225]
         min_size = 320
         max_size = 640
-        
         self.transform = GeneralizedRCNNTransform(min_size, max_size, image_mean, image_std)
         self.tensor_transform = transforms.ToTensor()
 
@@ -48,13 +44,12 @@ class Encoder():
         image = image.convert("RGB")
         image = self.tensor_transform(image)
         
-        if show_image:
+        if show_image is True:
             transforms.functional.to_pil_image(image).show()
         image = self.transform([image])
-        if show_image:
+        if show_image is True:
             transforms.functional.to_pil_image(image.tensors[0]).show()
         
-        ''' GET EMBEDDINGS '''
         # get the features from the backbone -- C3-C5, P3-P7 backbone & FPN
         feature_embeddings = self.khan_model.model.backbone(image[0].tensors)
         if isinstance(feature_embeddings, torch.Tensor):
@@ -64,8 +59,6 @@ class Encoder():
         for f in feature_embeddings.values():
             f = f.squeeze()
             f_emb_sq.append(f)
-
-        #head_outputs = khan_model.model.head(feature_embeddings)
 
         return f_emb_sq
 
