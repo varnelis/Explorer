@@ -18,6 +18,7 @@ from dacite import from_dict
 from PIL import Image
 from imagehash import average_hash
 from datetime import datetime
+import os
 
 from Explorer.io.selenium_scanner import SeleniumScanner
 from Explorer.objectives.objective_1 import Objective
@@ -28,6 +29,7 @@ from Explorer.tf_idf.tokenizer import Tokenizer as TFIDF_Tokenizer
 from Explorer.tf_idf.filters import LowerCaseFilter as TFIDF_LowerCaseFilter
 from Explorer.overlay.shortlister import Shortlister
 from Explorer.speech.speech2text import CommandPhrase, Speech2Text
+from Explorer.trace_similarity.trace_similarity import ScreenSimilarity
 
 import seaborn as sns
 import matplotlib.pylab as plt
@@ -261,11 +263,12 @@ def print_database():
 @click.command()
 def add_model_weights():
     MongoDBInterface.connect()
-    model2version = {"web7kbal":"v0.1.0", "web350k":"v0.2.0", "vins":"v0.3.0", "interactable-detector":"v0.4.0"}
+    model2version = {"web7kbal":"v0.1.0", "web350k":"v0.2.0", "vins":"v0.3.0", "interactable-detector":"v0.4.0", "screensimilarity":"v1.0.0"}
     gdrive_urls = {"web7kbal":"https://drive.google.com/file/d/1QQVmG6u4jgmptT-iMJdS_ESdEWwuC9U2/view?usp=sharing", 
                    "web350k":"https://drive.google.com/file/d/1WwgONDUkrQSc8NwokL1ePJ_OA3NQh17t/view?usp=sharing", 
                    "vins":"https://drive.google.com/file/d/16a-_TKxAaVYTuWeAdTJVWNW5LXLBeNuY/view?usp=sharing", 
-                   "interactable-detector":"https://drive.google.com/file/d/1C_GKcmW8WdDNpVN4eNQdqWCKJ--hct19/view?usp=sharing"}
+                   "interactable-detector":"https://drive.google.com/file/d/1C_GKcmW8WdDNpVN4eNQdqWCKJ--hct19/view?usp=sharing",
+                   "screensimilarity":"https://drive.google.com/file/d/17eOpWioh9lvYwN4XGhNvFyoiBOIDQEPW/view?usp=sharing",}
     detector_items = []
     for model in model2version:
         item = {"version": model2version[model], 
@@ -275,9 +278,8 @@ def add_model_weights():
                 }
         detector_items.append(item)
 
-    MongoDBInterface.add_items(detector_items, "detectors")
+    MongoDBInterface.add_items(detector_items, "screensimilarity")
 
-    
 
 @click.command()
 def add_ocr_data():
@@ -444,6 +446,23 @@ def speech_execution():
         speech2text.disp()
     speech2text.stop_listen()
 
+@click.command()
+def trace_sim():
+    def uuid2image(uuid: str) -> Image.Image:
+        path = os.path.join('./selenium_scans/screenshots', uuid + '.png')
+        image = Image.open(path)
+        return image
+
+    screensim = ScreenSimilarity()
+    trace_frames = [
+        'cd263a3ee2de4b239f913cec26e01b2f', '60108111cf3a4104b52b57d907c85ff0', 'fa0f7067dac845abb3fa50e387d40e46',
+        'a050de9a20bd4b18838ffadf8e7700a6', '15d6c0f784864b3a8ba294a80d4c9a00', '405d8166eb864a828fe9d37f13931087',
+        '2681a9d5e5be47f28d9f1c861ccdd64c', '8bab9972d17c41e280fc10bdef997226', '817456f70e744ec1a235368d1e88a94c',
+    ]
+    for i in range(len(trace_frames)):
+        trace_frames[i] = uuid2image(trace_frames[i])
+    screensim.trace_self_similarity(trace_frames)
+
 
 main.add_command(hello_world)
 main.add_command(record)
@@ -464,6 +483,7 @@ main.add_command(show_image_by_id)
 main.add_command(shortlist_image_bbox)
 main.add_command(speech_execution)
 main.add_command(objective_1)
+main.add_command(trace_sim)
 
 
 if __name__ == "__main__":
