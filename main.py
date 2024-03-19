@@ -30,6 +30,7 @@ from Explorer.tf_idf.filters import LowerCaseFilter as TFIDF_LowerCaseFilter
 from Explorer.overlay.shortlister import Shortlister
 from Explorer.speech.speech2text import CommandPhrase, Speech2Text
 from Explorer.trace_similarity.screen_similarity import ScreenSimilarity
+from Explorer.trace_similarity.action_matching import ActionMatching
 
 import seaborn as sns
 import matplotlib.pylab as plt
@@ -464,6 +465,35 @@ def trace_sim():
     screensim.trace_self_similarity(trace_frames)
 
 
+@click.command()
+def action_matching():
+    test_path = './Explorer/trace_similarity/test_action_matching/'
+
+    def name2image(name: str) -> Image.Image:
+        path = os.path.join(test_path, name + '.png')
+        image = Image.open(path)
+        return image
+    
+    action_matcher = ActionMatching()
+    image_user1 = name2image('user1_khanexample1')
+    image_user2 = name2image('user2_khanexample1')
+    image_user3 = name2image('user3_khanexample1')
+
+    click_user1 = (150, 690)
+    bbox_user1 = (33,627,336,719)
+    mode = 'resized_full'
+
+    for (next_user, next_image) in [("user2", image_user2), ("user3", image_user3)]:
+        next_click = action_matcher.interactable_matching(
+            image_user1, 
+            next_image, 
+            click_user1, 
+            mode,
+        )
+        action_matcher.show(image_user1, bbox_user1, "green", savedir=os.path.join(test_path, 'user1_click_bbox.png'))
+        action_matcher.show(next_image, next_click, "red", savedir=os.path.join(test_path, f'{next_user}_best_bbox_{mode}.png'))
+
+
 main.add_command(hello_world)
 main.add_command(record)
 main.add_command(scan)
@@ -484,6 +514,7 @@ main.add_command(shortlist_image_bbox)
 main.add_command(speech_execution)
 main.add_command(objective_1)
 main.add_command(trace_sim)
+main.add_command(action_matching)
 
 
 if __name__ == "__main__":
