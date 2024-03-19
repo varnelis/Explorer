@@ -7,7 +7,7 @@ from Explorer.overlay.shortlister import Shortlister
 from typing import Literal
 
 bbox_type = tuple[float, float, float, float]
-mode_type = Literal['black_full', 'cropped_subimg', 'resized_full']
+mode_type = Literal['black_full', 'resized_full']
 
 class ActionMatching(ScreenSimilarity):
 
@@ -54,8 +54,6 @@ class ActionMatching(ScreenSimilarity):
             bbox = list(map(lambda x: int(x), bbox)) # int for input-float bbox corners
             mask[bbox[1]:bbox[3], bbox[0]:bbox[2], :] = img[bbox[1]:bbox[3], bbox[0]:bbox[2], :]
             return Image.fromarray(mask)
-        elif mode=='cropped_subimg':
-            return image.crop(bbox)
         elif mode=='resized_full':
             original_size = image.size
             return image.crop(bbox).resize(original_size)
