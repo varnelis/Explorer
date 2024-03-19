@@ -1,6 +1,6 @@
 from collections import OrderedDict
 import os
-from uuid import UUID, uuid4
+from uuid import UUID
 import matplotlib.pyplot as plt
 import csv
 import glob
@@ -10,8 +10,7 @@ from torch import Tensor
 from tqdm import tqdm
 import contextlib
 
-from Explorer.trace_similarity.trace_similarity import ScreenSimilarity
-
+from Explorer.trace_similarity.screen_similarity import ScreenSimilarity
 
 class TraceProcessor:
     def __init__(self) -> None:
