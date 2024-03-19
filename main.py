@@ -29,8 +29,9 @@ from Explorer.tf_idf.tokenizer import Tokenizer as TFIDF_Tokenizer
 from Explorer.tf_idf.filters import LowerCaseFilter as TFIDF_LowerCaseFilter
 from Explorer.overlay.shortlister import Shortlister
 from Explorer.speech.speech2text import CommandPhrase, Speech2Text
-from Explorer.trace_similarity.screen_similarity import ScreenSimilarity
 from Explorer.trace_similarity.action_matching import ActionMatching
+from Explorer.trace_processing.trace_processor import TraceProcessor, TraceVisualiser
+from Explorer.trace_similarity.screen_similarity import ScreenSimilarity
 
 import seaborn as sns
 import matplotlib.pylab as plt
@@ -60,6 +61,8 @@ def record() -> None:
     start_time = time.time()
     recorder.start(start_time)
     grabber.start(start_time)
+
+    print("started!")
 
     while recorder.is_running():
         time.sleep(1)
@@ -493,6 +496,20 @@ def action_matching():
         action_matcher.show(image_user1, bbox_user1, "green", savedir=os.path.join(test_path, 'user1_click_bbox.png'))
         action_matcher.show(next_image, next_click, "red", savedir=os.path.join(test_path, f'{next_user}_best_bbox_{mode}.png'))
 
+@click.command()
+def process_trace():
+    processor = TraceVisualiser()
+    processor.make_gif()
+    processor.calculate_embeddings().load_screenshot_similarities()
+
+    processor.start_plot().plot_similarities().end_plot()
+    processor.start_plot().plot_similarities().plot_similarities_moving_average(10).plot_left_click().end_plot()
+
+    #processor.start_plot() \
+    #.plot_similarities() \
+    #.plot_similarities_moving_average(10) \
+    #.plot_state_change_detector(10, 0.5) \
+    #.end_plot()
 
 main.add_command(hello_world)
 main.add_command(record)
@@ -515,6 +532,7 @@ main.add_command(speech_execution)
 main.add_command(objective_1)
 main.add_command(trace_sim)
 main.add_command(action_matching)
+main.add_command(process_trace)
 
 
 if __name__ == "__main__":
