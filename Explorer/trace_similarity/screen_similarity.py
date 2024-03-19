@@ -70,10 +70,18 @@ class ScreenSimilarity(Encoder):
             embeddings_img2 = self.image2embedding(image2)
             (dist, preds) = self.embeddings2similarity(embeddings_img1, embeddings_img2)
             distances.append(dist)
-        print('Distances: ', distances)
+        #print('Distances: ', distances)
+        return distances
+
+def uuid2image(uuid: str) -> Image.Image:
+        path = os.path.join('./selenium_scans/screenshots', uuid + '.png')
+        image = Image.open(path)
+        return image
 
 
 if __name__ == '__main__':
-    screensim = ScreenSimilarity('../../selenium_scans/screenshots')
+    screensim = ScreenSimilarity()
     trace_frames = ['f81ae48ac9894eb79e8708abcb97843e', '20a58d760c4a4e619270a042c4eb451f']
+    for i in range(len(trace_frames)):
+        trace_frames[i] = uuid2image(trace_frames[i])
     screensim.trace_self_similarity(trace_frames)
