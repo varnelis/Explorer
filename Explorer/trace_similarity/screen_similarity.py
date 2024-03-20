@@ -1,10 +1,12 @@
 import os
 import gdown
 import torch
+import numpy as np
 from PIL import Image
 from Explorer.db.mongo_db import MongoDBInterface
 from Explorer.trace_similarity.embedding_exploration import Encoder
 from Explorer.trace_similarity.screensimilarity_model_CenterFPN import UIScreenEmbedder
+from Explorer.ocr.ocr import KhanOCR
 
 screensim_version = "v1.0.0"
 model2file = {"screensimilarity": "screensimilarity.ckpt"}
@@ -19,6 +21,7 @@ class ScreenSimilarity(Encoder):
 
         self._get_screensim_weights()
         self.screensim_model = UIScreenEmbedder.load_from_checkpoint(self.model_weights_path)
+        self.ocr_model = KhanOCR()
 
     def _get_img_features(self, image: Image.Image):        
         fpn = self.encoder(image=image, show_image=False)
@@ -51,6 +54,12 @@ class ScreenSimilarity(Encoder):
         center = torch.broadcast_to(center_upsample, (batch_size, 5, 256, 40, 44))
         embeddings = torch.cat((fpn.unsqueeze(1), center.unsqueeze(1)), dim=1)
         return embeddings
+    
+    def image2ocrembedding(self, image: Image.Image) -> np.ndarray:
+        ocr_text = self.ocr_model.get_ocr(np.array(image), lemmatize=False, confidence=0.5)
+        print('ocr detected: ', ocr_text)
+        ocr_embedding = self.ocr_model.word_embedding(ocr_text)
+        return torch.tensor(ocr_embedding)
 
     def embeddings2similarity(self, embeddings_img1: torch.Tensor, embeddings_img2: torch.Tensor) -> tuple[float, bool]:
         outs1 = self.screensim_model.forward(embeddings_img1)
@@ -72,11 +81,15 @@ class ScreenSimilarity(Encoder):
             distances.append(dist)
         #print('Distances: ', distances)
         return distances
+    
+    def ocr_embedding_similarity(self, ocr_embeddings_img1: torch.Tensor, ocr_embeddings_img2: torch.Tensor) -> float:
+        ocr_dist = self.encoding_distance(ocr_embeddings_img1, ocr_embeddings_img2)
+        return ocr_dist
 
 def uuid2image(uuid: str) -> Image.Image:
-        path = os.path.join('./selenium_scans/screenshots', uuid + '.png')
-        image = Image.open(path)
-        return image
+    path = os.path.join('./selenium_scans/screenshots', uuid + '.png')
+    image = Image.open(path)
+    return image
 
 
 if __name__ == '__main__':
@@ -84,4 +97,4 @@ if __name__ == '__main__':
     trace_frames = ['f81ae48ac9894eb79e8708abcb97843e', '20a58d760c4a4e619270a042c4eb451f']
     for i in range(len(trace_frames)):
         trace_frames[i] = uuid2image(trace_frames[i])
-    screensim.trace_self_similarity(trace_frames)
+    screensim.trace_self_similarity(trace_frames, use_ocr=False)

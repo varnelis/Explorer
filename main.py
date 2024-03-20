@@ -386,22 +386,28 @@ def show_image_by_id(id):
 
 
 @click.command()
+@click.option("--img", required=False, default="", type=str, help="Image to get bboxes")
 @click.option("--shortlist_threshold", required=False, default=0.5, type=float, help="Lower threshold for interactables")
 @click.option("--nms_iou_threshold", required=False, default=0.2, type=float, help="Upper threshold for IoU NMS")
 def shortlist_image_bbox(
-    shortlist_threshold: float,
-    nms_iou_threshold: float,
+    img: str = "",
+    shortlist_threshold: float = 0.5,
+    nms_iou_threshold: float = 0.2,
 ):
-    img = Image.open("./shortlist_images/image_raw.png")
+    if img == "":
+        img = Image.open("./shortlist_images/image_raw.png")
+        #img = Image.open("./Explorer/trace_similarity/test_action_matching/Ex2_ArnasToIasonScreen/iason1.png")
+    else:
+        img = Image.open(img)
     shortlister = Shortlister()
 
     shortlister.set_img(img)
 
-    shortlister.set_model("ocr").set_bboxes().save()
-    shortlister.set_model("interactable-detector").set_bboxes().save()
-    shortlister.set_model("vins").set_bboxes().save()
-    shortlister.set_model("web350k").set_bboxes().save()
-    shortlister.set_model("web7kbal").set_bboxes().save()
+    #shortlister.set_model("ocr").set_bboxes().save()
+    shortlister.set_model("interactable-detector").set_bboxes().show()#.save()#
+    #shortlister.set_model("vins").set_bboxes().save()
+    #shortlister.set_model("web350k").set_bboxes().save()
+    #shortlister.set_model("web7kbal").set_bboxes().save()
 
 @click.command()
 def objective_1():
@@ -451,7 +457,8 @@ def speech_execution():
     speech2text.stop_listen()
 
 @click.command()
-def trace_sim():
+@click.option("--include_ocr", required=False, default=False, type=bool, help="Use Screensim model + OCR embedding distance")
+def trace_sim(include_ocr):
     def uuid2image(uuid: str) -> Image.Image:
         path = os.path.join('./selenium_scans/screenshots', uuid + '.png')
         image = Image.open(path)
@@ -465,12 +472,13 @@ def trace_sim():
     ]
     for i in range(len(trace_frames)):
         trace_frames[i] = uuid2image(trace_frames[i])
-    screensim.trace_self_similarity(trace_frames)
+    screensim.trace_self_similarity(trace_frames, include_ocr=include_ocr)
 
 
 @click.command()
-def action_matching():
-    test_path = './Explorer/trace_similarity/test_action_matching/'
+@click.option("--include_ocr_top_k", required=False, default=0, type=int, help="Use Screensim model + OCR embedding distance")
+def action_matching(include_ocr_top_k):
+    test_path = './Explorer/trace_similarity/test_action_matching/Ex3_ArnasToIasonScreen'
 
     def name2image(name: str) -> Image.Image:
         path = os.path.join(test_path, name + '.png')
@@ -478,23 +486,51 @@ def action_matching():
         return image
     
     action_matcher = ActionMatching()
-    image_user1 = name2image('user1_khanexample1')
+    # Example 1 - Iason to Iason
+    '''image_user1 = name2image('user1_khanexample1')
     image_user2 = name2image('user2_khanexample1')
     image_user3 = name2image('user3_khanexample1')
-
     click_user1 = (150, 690)
-    bbox_user1 = (33,627,336,719)
+    bbox_user1 = (33,627,336,719)'''
+
+    # Example 2 - Nino (user1) to Iason (user2)
+    '''state_info = { # state: user1name, user2name, user1click
+        'state1': {'user1': 'nino1', 'user2': 'iason1', 'user1_click': (467,1218)},
+        'state2': {'user1': 'nino2', 'user2': 'iason2', 'user1_click': (1548,875)},
+        #'state3': {'user1': 'nino3', 'user2': 'iason3', 'user1_click': (1202,1380)},
+        'state4': {'user1': 'nino4', 'user2': 'iason4', 'user1_click': (2307,1447)},
+    }'''
+
+    # Example 3 - Arnas to Iason
+    state_info = { # state: user1name, user2name, user1click
+        'state1': {'user1': 'arnas1', 'user2': 'iason1', 'user1_click': (1237,672)},
+        'state2': {'user1': 'arnas1', 'user2': 'iason1', 'user1_click': (69,671)},
+        'state3': {'user1': 'arnas1', 'user2': 'iason1', 'user1_click': (1080,178)},
+        'state4': {'user1': 'iason1', 'user2': 'arnas1', 'user1_click': (1769,642)},
+        'state5': {'user1': 'iason1', 'user2': 'arnas1', 'user1_click': (78,651)},
+        'state6': {'user1': 'iason1', 'user2': 'arnas1', 'user1_click': (1316,147)},
+    }
     mode = 'resized_full'
 
-    for (next_user, next_image) in [("user2", image_user2), ("user3", image_user3)]:
-        next_click = action_matcher.interactable_matching(
+    for state in state_info:
+        print('state compared: ', state)
+        image_user1 = name2image(state_info[state]['user1'])
+        image_user2 = name2image(state_info[state]['user2'])
+        click_user1 = state_info[state]['user1_click']
+        
+        bbox_clicked_user1 = action_matcher.get_interactable_at_click(image_user1, click_user1)
+        best_bbox_user2 = action_matcher.interactable_matching(
             image_user1, 
-            next_image, 
+            image_user2, 
             click_user1, 
             mode,
+            include_ocr_top_k=include_ocr_top_k,
+            show_user1=True,
         )
-        action_matcher.show(image_user1, bbox_user1, "green", savedir=os.path.join(test_path, 'user1_click_bbox.png'))
-        action_matcher.show(next_image, next_click, "red", savedir=os.path.join(test_path, f'{next_user}_best_bbox_{mode}.png'))
+        action_matcher.show(image_user1, bbox_clicked_user1, "green", savedir=None) #savedir=os.path.join(test_path, 'user1_click_bbox.png'))
+        action_matcher.show(image_user2, best_bbox_user2, "red", savedir=None) #savedir=os.path.join(test_path, f'{next_user}_best_bbox_{mode}.png'))
+
+        input()
 
 @click.command()
 def process_trace():
