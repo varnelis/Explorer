@@ -1,6 +1,6 @@
 from collections import OrderedDict
 import os
-from uuid import UUID, uuid4
+from uuid import UUID
 import matplotlib.pyplot as plt
 import csv
 import glob
