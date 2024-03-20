@@ -10,7 +10,7 @@ from torch import Tensor
 from tqdm import tqdm
 import contextlib
 
-from Explorer.trace_similarity.trace_similarity import ScreenSimilarity
+from Explorer.trace_similarity.screen_similarity import ScreenSimilarity
 
 
 class TraceProcessor:

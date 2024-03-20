@@ -129,16 +129,20 @@ class KhanOCR:
         lemmatized_words = [lemmatizer.lemmatize(word, self.get_wordnet_pos(tag)) for word, tag in pos_tags]
         return lemmatized_words
     
-    def get_ocr(self, img, lemmatize: bool):
+    def get_ocr(self, img, lemmatize: bool, confidence: float = 0.75):
         """ OCR from image path `img` @ confidence 0.75, preprocess and _concatenate_ (+ optionally lemmatize) """
         ocr_read = self.reader.readtext(img)
         ocr_text = ''
+        
+        if len(ocr_read) == 0:
+            return ''
+        
         for d in ocr_read:
-            if d[-1] > 0.75: # confidence
+            if d[-1] > confidence: # confidence
                 ocr_text += self.preprocess_text(d[-2])
                 ocr_text += ' ' # concatenate
 
-        if lemmatize:
+        if lemmatize is True:
             lem_text = self.lemmatize_passage(ocr_text)
             return lem_text
         return ocr_text
