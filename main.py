@@ -476,8 +476,9 @@ def trace_sim(include_ocr):
 
 
 @click.command()
-@click.option("--include_ocr_top_k", required=False, default=0, type=int, help="Use Screensim model + OCR embedding distance")
-def action_matching(include_ocr_top_k):
+@click.option("--include_ocr", required=False, default=False, type=bool, help="Use Screensim model + OCR embedding distance")
+@click.option("--verbose_show", required=False, default=1, type=int, help="Show images in action matching")
+def action_matching(include_ocr, verbose_show):
     test_path = './Explorer/trace_similarity/test_action_matching/Ex3_ArnasToIasonScreen'
 
     def name2image(name: str) -> Image.Image:
@@ -502,13 +503,21 @@ def action_matching(include_ocr_top_k):
     }'''
 
     # Example 3 - Arnas to Iason
-    state_info = { # state: user1name, user2name, user1click
+    '''state_info = { # state: user1name, user2name, user1click
         'state1': {'user1': 'arnas1', 'user2': 'iason1', 'user1_click': (1237,672)},
         'state2': {'user1': 'arnas1', 'user2': 'iason1', 'user1_click': (69,671)},
         'state3': {'user1': 'arnas1', 'user2': 'iason1', 'user1_click': (1080,178)},
         'state4': {'user1': 'iason1', 'user2': 'arnas1', 'user1_click': (1769,642)},
         'state5': {'user1': 'iason1', 'user2': 'arnas1', 'user1_click': (78,651)},
         'state6': {'user1': 'iason1', 'user2': 'arnas1', 'user1_click': (1316,147)},
+    }'''
+    
+    # Example 3.5 - Arnas to Iason
+    # Example 3 - Arnas to Iason
+    state_info = { # state: user1name, user2name, user1click
+        'state1': {'user1': 'arnas3', 'user2': 'iason3', 'user1_click': (124,632)}, # Rate problems
+        'state2': {'user1': 'arnas4', 'user2': 'iason4', 'user1_click': (1151,503)}, # continue with Apple
+        'state3': {'user1': 'arnas5', 'user2': 'iason5', 'user1_click': (116,425)}, # simulating phenomena with loops
     }
     mode = 'resized_full'
 
@@ -518,17 +527,16 @@ def action_matching(include_ocr_top_k):
         image_user2 = name2image(state_info[state]['user2'])
         click_user1 = state_info[state]['user1_click']
         
-        bbox_clicked_user1 = action_matcher.get_interactable_at_click(image_user1, click_user1)
-        best_bbox_user2 = action_matcher.interactable_matching(
+        savedir_noext=os.path.join(test_path, f'{state_info[state]["user1"]}_to_{state_info[state]["user2"]}')
+        best_bbox_user2 = action_matcher.replicate_action_on_given_state(
             image_user1, 
             image_user2, 
             click_user1, 
-            mode,
-            include_ocr_top_k=include_ocr_top_k,
-            show_user1=True,
+            mode="resized_full", 
+            include_ocr=include_ocr,
+            verbose_show=verbose_show, 
+            savedir=savedir_noext,
         )
-        action_matcher.show(image_user1, bbox_clicked_user1, "green", savedir=None) #savedir=os.path.join(test_path, 'user1_click_bbox.png'))
-        action_matcher.show(image_user2, best_bbox_user2, "red", savedir=None) #savedir=os.path.join(test_path, f'{next_user}_best_bbox_{mode}.png'))
 
         input()
 

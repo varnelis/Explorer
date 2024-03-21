@@ -65,6 +65,21 @@ class ActionMatching(ScreenSimilarity):
         if show is True:
             ret_img.show()
         return ret_img.resize(original_size), ret_img
+    
+    def match_interactables_ocrs(self, interactables: list[bbox_type], ocrs: list[tuple[bbox_type, str]]) -> list[str]:
+        """ Return array of str OCRs (concat), where OCR at index i corresponds to interactable at index i in interactables list. """
+        text_for_interactable = ['' for _ in range(len(interactables))]
+        for i in range(len(interactables)):
+            i_bbox = interactables[i]
+            for ocr in ocrs:
+                ocr_bbox = ocr[0]
+                ioa = Shortlister()._iou(i_bbox, ocr_bbox, ret_I_over_area2=True) # gives intersection over area of OCR bbox
+                if ioa >= 0.5:
+                    if text_for_interactable[i] == '':
+                        text_for_interactable[i] += ocr[1]
+                    else:
+                        text_for_interactable[i] += ' ' + ocr[1]
+        return text_for_interactable
 
     def interactable_matching(
         self, 
@@ -72,26 +87,38 @@ class ActionMatching(ScreenSimilarity):
         image_user2: Image.Image, 
         click_user1: tuple[float, float],
         mode: mode_type,
-        include_ocr_top_k: int = 0,
+        include_ocr: bool = 0,
         show_user1: bool = False,
+        ret_top_k: int = 0,
     ) -> bbox_type:
         """ Return bbox coordinates of best-match interactable on User 2 image
         given User 1 clicked interactable. """
         interactable_user1 = self.get_interactable_at_click(image_user1, click_user1)
         input_image1, input_image1_originalsize = self.interactable2input(image_user1, interactable_user1, mode, show=show_user1)
-        if include_ocr_top_k > 0:
-            ocr_embeddings_img1 = self.image2ocrembedding(input_image1_originalsize)
+        all_interactables_user2 = self.get_interactables_on_image(image_user2) # also do NMS?
 
-        all_interactables_user2 = self.get_interactables_on_image(image_user2)
+        if include_ocr is True:
+            ocr_bbox_text_image1 = self.image2ocr(input_image1_originalsize)
+            interactable2ocr_image1 = [el[1] for el in ocr_bbox_text_image1]
+            ocr_embedding_image1 = self.ocr2embedding(interactable2ocr_image1, concat=True)
+            ocr_bbox_text_image2 = self.image2ocr(image_user2)
+            interactable2ocr_image2 = self.match_interactables_ocrs(all_interactables_user2, ocr_bbox_text_image2)
+            ocr_embeddings_image2 = self.ocr2embedding(interactable2ocr_image2, concat=False)
+        
+        dists = []
         min_dist = np.infty
         best_interactable = None
-
-        dists = []
         
-        for interactable_user2 in tqdm(all_interactables_user2, desc='Comparing appearance'):
+        for i in tqdm(range(len(all_interactables_user2)), desc='Comparing appearance'):
+            interactable_user2 = all_interactables_user2[i]
             input_image2, _ = self.interactable2input(image_user2, interactable_user2, mode, show=False)
             distances = self.trace_self_similarity([input_image1, input_image2])
             total_dist = distances[0]
+
+            if include_ocr is True:
+                ocr_dist = self.encoding_distance(ocr_embedding_image1, ocr_embeddings_image2[i])
+                print('ocr dist = ', ocr_dist)
+                total_dist += ocr_dist
             
             if total_dist < min_dist:
                 min_dist = total_dist
@@ -99,31 +126,62 @@ class ActionMatching(ScreenSimilarity):
 
             dists.append(total_dist)
 
-        if include_ocr_top_k == 0:
-            return best_interactable
-        
-        # for the top-k min-distance interactables, add the ocr-distance and get the minimum total-distance now
-        min_dist = np.infty
-        best_interactable = None
-        best_k = sorted(range(len(dists)), key=lambda i: dists[i])[:include_ocr_top_k]
-        for k in tqdm(best_k, desc=f'Comparing OCR for top-{include_ocr_top_k}'):
-            _, input_imagek_originalsize = self.interactable2input(image_user2, all_interactables_user2[k], mode, show=True)
-            ocr_embeddings_imgk = self.image2ocrembedding(input_imagek_originalsize)
-            ocr_dist = self.ocr_embedding_similarity(ocr_embeddings_img1, ocr_embeddings_imgk)
-            
-            total_dist = dists[k] + ocr_dist
-            if total_dist < min_dist:
-                min_dist = total_dist
-                best_interactable = all_interactables_user2[k]
-            
-        return best_interactable
+        if ret_top_k > 0:
+            topk_idx = sorted(range(len(dists)), key=lambda i: dists[i])[:ret_top_k]
+            topk_interactables = [all_interactables_user2[i] for i in topk_idx]
+            return best_interactable, topk_interactables
+        return best_interactable, None
     
-    def show(self, image: Image.Image, bbox: bbox_type, bbox_color: str, savedir: str | None = None) -> None:
+    def show(
+        self, 
+        image: Image.Image, 
+        bbox: bbox_type | list[bbox_type], 
+        bbox_color: str | list[str], 
+        savedir: str | None = None,
+    ) -> None:
         draw_image = image.copy()
         draw_bbox = ImageDraw.Draw(draw_image)
-        draw_bbox.rectangle(bbox, outline=bbox_color, width=5)
+        if all(isinstance(element, list) for element in bbox):
+            if isinstance(bbox_color, str):
+                bbox_color = [bbox_color] * len(bbox)
+            assert(len(bbox)==len(bbox_color)), "Wrong dimensionality for color arg"
+            for bb in range(len(bbox)):
+                draw_bbox.rectangle(bbox[bb], outline=bbox_color[bb], width=5)
+        else:
+            draw_bbox.rectangle(bbox, outline=bbox_color, width=5)
         
         if savedir is not None:
             draw_image.save(savedir)
         else:
             draw_image.show()
+
+    def replicate_action_on_given_state(
+        self, 
+        image1: Image.Image, 
+        image2: Image.Image, 
+        action_on_image1: tuple[float, float],
+        mode: mode_type,
+        include_ocr: bool = False, # just appearance-based similarity or added OCR similarity
+        verbose_show: int = 0, # 0 = nothing. 1 = show all screens w top interactable. k = show all; show user2 top-k predicted interactables
+        savedir: str = None,
+    ) -> bbox_type:
+        bbox_clicked_user1 = self.get_interactable_at_click(image1, action_on_image1)
+        best_bbox_user2, top_k_bbox_user2 = self.interactable_matching(
+            image1, 
+            image2, 
+            action_on_image1, 
+            mode,
+            include_ocr=include_ocr,
+            show_user1=(verbose_show > 0),
+            ret_top_k=verbose_show,
+        )
+        
+        if verbose_show == 1:
+            self.show(image1, bbox_clicked_user1, "green", savedir=savedir+"user1img.png")
+        if verbose_show > 1:
+            self.show(image1, bbox_clicked_user1, "green", savedir=savedir+"user1img.png")
+            color2 = ["blue"] * verbose_show
+            color2[0] = "red"
+            self.show(image2, top_k_bbox_user2, color2, savedir=savedir+f"user2pred_top{verbose_show}.png")
+
+        return best_bbox_user2

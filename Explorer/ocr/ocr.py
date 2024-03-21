@@ -147,30 +147,36 @@ class KhanOCR:
             return lem_text
         return ocr_text
     
-    def get_base_ocr(self, img):
+    def get_base_ocr(self, img, confidence: float = 0.5, ret_bbox_plus_text: bool = False):
         """
         ocr_base              -- OCR from image path `img` @ confidence 0.5, without preprocessing
         ocr_base_int          -- ocr_base with conversion of text bboxes from np.int32 to int for json serialisation
                                  list of bbox (int), text (str), confidence (float) for each detected sentence in img
-        ocr_processed_thres50 -- ocr_base with preprocessing on text & dropping the bbox and confidence data
+        ocr_processed_thres   -- ocr_base with preprocessing on text & dropping the bbox and confidence data
                                  list of preprocessed text (str) for each detected sentence in img
         
         *** ocr_base_int is the OCR data pushed to MongoDB ***
         """
         ocr_base = self.reader.readtext(img)
-        ocr_processed_thres50 = []
+        ocr_processed_thres = []
         
         ocr_base_int = []
         for d in ocr_base:
-            if d[-1] > 0.5:
-                processed = self.preprocess_text(d[-2])
-                ocr_processed_thres50.append(processed)
+            if d[-1] > confidence:
+                if ret_bbox_plus_text is True:
+                    processed = (
+                        [ int(d[0][0][0]), int(d[0][0][1]), int(d[0][2][0]), int(d[0][2][1]) ], 
+                        self.preprocess_text(d[1])
+                    )
+                else:
+                    processed = self.preprocess_text(d[-2])
+                ocr_processed_thres.append(processed)
 
             # convert bbox OCR from np.int32 to int, drop redundant bboxes
             d_int = ([ [int(d[0][0][0]), int(d[0][0][1])], [int(d[0][2][0]), int(d[0][2][1])] ], d[1], d[2])
             ocr_base_int.append(d_int)
 
-        return ocr_base_int, ocr_processed_thres50
+        return ocr_base_int, ocr_processed_thres
 
     def word_embedding(self, text: list[str], concat: bool = True) -> list[NDArray] | NDArray:
         """

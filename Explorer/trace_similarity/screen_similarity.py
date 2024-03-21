@@ -55,11 +55,13 @@ class ScreenSimilarity(Encoder):
         embeddings = torch.cat((fpn.unsqueeze(1), center.unsqueeze(1)), dim=1)
         return embeddings
     
-    def image2ocrembedding(self, image: Image.Image) -> np.ndarray:
-        ocr_text = self.ocr_model.get_ocr(np.array(image), lemmatize=False, confidence=0.5)
-        print('ocr detected: ', ocr_text)
-        ocr_embedding = self.ocr_model.word_embedding(ocr_text)
-        return torch.tensor(ocr_embedding)
+    def image2ocr(self, image: Image.Image) -> list[tuple[list[float, float, float, float], str]]:
+        _, ocr_bbox_text = self.ocr_model.get_base_ocr(np.array(image), confidence=0.5, ret_bbox_plus_text=True)
+        return ocr_bbox_text
+    
+    def ocr2embedding(self, ocr_text: list[str], concat: bool = False) -> torch.Tensor:
+        ocr_embeddings = self.ocr_model.word_embedding(ocr_text, concat=concat)
+        return torch.tensor(ocr_embeddings)
 
     def embeddings2similarity(self, embeddings_img1: torch.Tensor, embeddings_img2: torch.Tensor) -> tuple[float, bool]:
         outs1 = self.screensim_model.forward(embeddings_img1)
