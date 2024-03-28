@@ -168,3 +168,4 @@ temp/
 *.csv
 *.npz
 *.ckpt
+*.gif
