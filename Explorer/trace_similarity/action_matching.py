@@ -15,6 +15,8 @@ class ActionMatching(ScreenSimilarity):
 
     def __init__(self) -> None:
         super().__init__()
+        self.shortlist_model = Shortlister()
+        self.shortlist_model.set_model("interactable-detector")
 
     def _check_point_in_bbox(self, point: tuple[float, float], bbox: bbox_type) -> bool:
         (point_x, point_y) = point
@@ -27,10 +29,7 @@ class ActionMatching(ScreenSimilarity):
 
     def get_interactables_on_image(self, image: Image.Image) -> list[bbox_type]:
         """ Gets list of bboxes of all interactables on the image. """
-        shortlist_model = Shortlister()
-        shortlist_model.set_model("interactable-detector")
-        shortlist_model.set_img(image).set_bboxes()
-        return shortlist_model.bboxes
+        return self.shortlist_model.set_img(image).set_bboxes().bboxes
 
     def get_interactable_at_click(self, image: Image.Image, click_pos: tuple[float, float]) -> None:
         """ Gets interactable bbox that contains the given click_pos.
@@ -53,9 +52,9 @@ class ActionMatching(ScreenSimilarity):
         entire-resolution input image """
         original_size = image.size
         if mode=='black_full':
-            img = np.array(image.copy())
+            img = np.array(image)
             mask = np.zeros_like(img, dtype=np.uint8)
-            bbox = list(map(lambda x: int(x), bbox)) # int for input-float bbox corners
+            bbox = [int(x) for x in bbox] # int for input-float bbox corners
             mask[bbox[1]:bbox[3], bbox[0]:bbox[2], :] = img[bbox[1]:bbox[3], bbox[0]:bbox[2], :]
             ret_img = Image.fromarray(mask)
         elif mode=='resized_full':
@@ -68,9 +67,8 @@ class ActionMatching(ScreenSimilarity):
     
     def match_interactables_ocrs(self, interactables: list[bbox_type], ocrs: list[tuple[bbox_type, str]]) -> list[str]:
         """ Return array of str OCRs (concat), where OCR at index i corresponds to interactable at index i in interactables list. """
-        text_for_interactable = ['' for _ in range(len(interactables))]
-        for i in range(len(interactables)):
-            i_bbox = interactables[i]
+        text_for_interactable = [''] * len(interactables)
+        for i, i_bbox in enumerate(interactables):
             for ocr in ocrs:
                 ocr_bbox = ocr[0]
                 ioa = Shortlister()._iou(i_bbox, ocr_bbox, ret_I_over_area2=True) # gives intersection over area of OCR bbox
