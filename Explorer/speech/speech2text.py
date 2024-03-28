@@ -1,3 +1,4 @@
+from collections import defaultdict
 from enum import StrEnum
 import speech_recognition as sr
 from typing import Any
@@ -22,12 +23,8 @@ class Speech2Text:
         self.user_current_phrase: CommandPhrase = None # updated with current phrase
         self.click_num: int = None
         self.verbose = verbose
-        self.commands = [
-            CommandPhrase.SHOW.value,
-            CommandPhrase.CLICK.value,
-            CommandPhrase.STOP.value,
-        ]
-        self._executors: dict[CommandPhrase, Callable[[Any]]] = {}
+        self.commands = {p.value for p in list(CommandPhrase)}
+        self._executors: dict[CommandPhrase, Callable[[Any]]] = defaultdict(None)
 
     def attach_exec(
         self, exec_func: Callable, target: CommandPhrase
@@ -37,82 +34,74 @@ class Speech2Text:
         self._executors[target] = exec_func
 
     def execute(self):
-        try:
-            exec = self._executors[self.user_current_phrase]
-        except KeyError:
-            if self.verbose == True:
-                raise RuntimeWarning('No executor attached to this action. No execution.')
+        exec = self._executors[self.user_current_phrase]
+        if exec is None:
+            print(f"Unexpected user phrase: {self.user_current_phrase}")
             return
         
         if self.user_current_phrase == CommandPhrase.CLICK:
             exec(self.click_num)
+            self.click_num = None
         elif (
             self.user_current_phrase == CommandPhrase.SHOW or 
             self.user_current_phrase == CommandPhrase.STOP
         ):
             exec()
         else:
-            raise RuntimeError('No phrase registered. user_current_phrase = None.')
-        return
+            print(f'No phrase registered. user_current_phrase: {self.user_current_phrase}')
 
-    def callback(self, recognizer, audio) -> int | None:
-        """ Interrupt Service Routine on user-spoken phrases detected by background listener.
-        Detects audio and converts to text with Google Speech Recognition. """
+    def callback(self, recognizer, audio) -> None:
+        print("analysing detected audio...")
         try:
-            # using the default API key; look at `r.recognize_google(audio, key="GOOGLE_SPEECH_RECOGNITION_API_KEY")`
-            user_command = recognizer.recognize_whisper(audio)       #recognize_google(audio)
+            raw_user_phrase = recognizer.recognize_whisper(audio)
         except sr.UnknownValueError:
-            print("Google Speech Recognition could not understand audio")
-            return None
+            print("Speech Recognition could not understand audio")
+            return
         except sr.RequestError as e:
-            print("Could not request results from Google Speech Recognition service; {0}".format(e))
-            return None
+            print(f"Unexpected request error: {e}")
+            return
         
-        print('detected: ', user_command)
-        user_command = re.sub(r'[^\w]', ' ', user_command.lower())
-        detected_command = set(self.commands) & set([i for i in user_command.split(' ') if i!=""])
-        
+        user_phrase = re.sub(r'[^\w]', ' ', raw_user_phrase.lower())
+        phrase_tokens = user_phrase.split()
+
+        detected_command = self.commands & set(phrase_tokens)
+        print(f"command_tokens: {phrase_tokens}")
         if len(detected_command) != 1:
             print('No valid command detected.')
-            return None
+            return 
+        self.user_current_phrase = CommandPhrase(detected_command.pop())
 
-        # One of the valid commands detected
-        detected_command = list(detected_command)[0]
-        # set params
-        if detected_command == "click":
-            try:
-                self.click_num = self._text2int([i for i in user_command.split(' ') if i!=""][1])
-            except IndexError as e:
-                print('Invalid `click` command. ', str(e))
-                return None
-        else:
-            self.click_num = None
-        self.user_current_phrase = CommandPhrase(detected_command)
-        # execute attached func
+        if self.user_current_phrase == CommandPhrase.CLICK:
+            if len(phrase_tokens) < 2:
+                print(f"Number was not detected...")
+                return
+            self.click_num = self._text2int(phrase_tokens[1])
+            if self.click_num is None:
+                print(f"Number was not detected...")
+                return
         self.execute()
-        return None
 
     def _text2int(self, textnum: str, numwords: dict = {}):
         """ Convert written numbers (e.g. either '1' or 'one') to int format (e.g. 1) """
         if textnum.isdigit():
             return int(textnum)
 
-        if not numwords:
-            units = [
-                "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
-                "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
-                "sixteen", "seventeen", "eighteen", "nineteen",
-            ]
-            tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
-            scales = ["hundred", "thousand", "million", "billion", "trillion"]
-            numwords["and"] = (1, 0)
-            for idx, word in enumerate(units):    numwords[word] = (1, idx)
-            for idx, word in enumerate(tens):     numwords[word] = (1, idx * 10)
-            for idx, word in enumerate(scales):   numwords[word] = (10 ** (idx * 3 or 2), 0)
+        units = [
+            "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
+            "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
+            "sixteen", "seventeen", "eighteen", "nineteen",
+        ]
+        tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
+        scales = ["hundred", "thousand", "million", "billion", "trillion"]
+        numwords["and"] = (1, 0)
+        for idx, word in enumerate(units):    numwords[word] = (1, idx)
+        for idx, word in enumerate(tens):     numwords[word] = (1, idx * 10)
+        for idx, word in enumerate(scales):   numwords[word] = (10 ** (idx * 3 or 2), 0)
         current = result = 0
+
         for word in textnum.split():
             if word not in numwords:
-                raise Exception("Illegal word: " + word)
+                return None
             scale, increment = numwords[word]
             current = current * scale + increment
             if scale > 100:
@@ -122,7 +111,7 @@ class Speech2Text:
 
     def listen(self) -> None:
         """ Start listening in the background. """
-        self.stop_listening = self.rec.listen_in_background(self.mic, self.callback)
+        self.stop_listening = self.rec.listen_in_background(self.mic, self.callback, 5)
         print('speak')
 
     def stop_listen(self) -> None:

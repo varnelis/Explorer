@@ -57,10 +57,10 @@ class Objective(ScreenOverlay):
         self.setFocus()
     
     def _click(self, pos: tuple[float, float]):
-        print("clicking...")
         controller = Controller()
         controller.mouse_set_position(pos[0], pos[1])
         time.sleep(0.2)
         controller.mouse_press(AnyButton.left)
+        time.sleep(0.1)
         controller.mouse_release(AnyButton.left)
 
