@@ -29,6 +29,7 @@ from Explorer.tf_idf.tokenizer import Tokenizer as TFIDF_Tokenizer
 from Explorer.tf_idf.filters import LowerCaseFilter as TFIDF_LowerCaseFilter
 from Explorer.overlay.shortlister import Shortlister
 from Explorer.speech.speech2text import CommandPhrase, Speech2Text
+from Explorer.trace_processing.traversal_application import TraversalApplication
 from Explorer.trace_similarity.action_matching import ActionMatching
 from Explorer.trace_processing.trace_processor import TraceProcessor, TraceVisualiser
 from Explorer.trace_similarity.screen_similarity import ScreenSimilarity
@@ -438,7 +439,6 @@ def objective_1():
         target = CommandPhrase.STOP
     )
     speech2text.listen()
-
     qt_app.exec_()
     speech2text.stop_listen()
 
@@ -549,11 +549,19 @@ def process_trace():
     processor.start_plot().plot_similarities().end_plot()
     processor.start_plot().plot_similarities().plot_similarities_moving_average(10).plot_left_click().end_plot()
 
-    #processor.start_plot() \
-    #.plot_similarities() \
-    #.plot_similarities_moving_average(10) \
-    #.plot_state_change_detector(10, 0.5) \
-    #.end_plot()
+    processor.start_plot() \
+    .plot_similarities() \
+    .plot_similarities_moving_average(10) \
+    .plot_state_change_detector(10, 0.5) \
+    .plot_left_click(0.5) \
+    .end_plot()
+
+@click.command()
+def objective_2():
+    qt_app = QApplication(sys.argv)
+    app = TraversalApplication()
+    app.show()
+    qt_app.exec_()
 
 main.add_command(hello_world)
 main.add_command(record)
@@ -577,6 +585,7 @@ main.add_command(objective_1)
 main.add_command(trace_sim)
 main.add_command(action_matching)
 main.add_command(process_trace)
+main.add_command(objective_2)
 
 
 if __name__ == "__main__":

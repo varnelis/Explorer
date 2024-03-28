@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from collections import deque
 import os
 from uuid import UUID
 import matplotlib.pyplot as plt
@@ -12,6 +12,46 @@ import contextlib
 
 from Explorer.trace_similarity.screen_similarity import ScreenSimilarity
 
+class Buffer(deque):
+    def __init__(self, maxsize: int = 0) -> None:
+        super().__init__([0] * maxsize)
+
+    def add(self, item):
+        self.popleft()
+        self.append(item)
+
+class RollingStateProcessor:
+    def __init__(self, roll_window, u_threshold, l_threshold, static_trigger: callable, changing_trigger: callable) -> None:
+        self.is_static = True
+        self.u_threshold = u_threshold
+        self.l_threshold = l_threshold
+        self.state_is_changing_trigger = changing_trigger
+        self.state_is_static_trigger = static_trigger
+
+        self.screen_similarity_model = ScreenSimilarity()
+
+        self.last_embedding: Tensor | None = None
+        self.screen_similarities = Buffer(roll_window)
+        self.timestamps = Buffer(roll_window)
+    
+    def add_img(self, img: Image.Image, timestamp) -> Tensor:
+        embedding = self.screen_similarity_model.image2embedding(img)
+        if self.last_embedding is not None:
+            d_embedding, is_same = self.screen_similarity_model.embeddings2similarity(self.last_embedding, embedding)
+            self.screen_similarities.add(d_embedding)
+            self.timestamps.add(timestamp)
+        self.last_embedding = embedding
+        self.update_state()
+    
+    def update_state(self):
+        similarity = sum(self.screen_similarities)
+        print(similarity)
+        if self.is_static is True and similarity > self.u_threshold:
+            self.is_static = False
+            self.state_is_changing_trigger()
+        elif self.is_static is False and similarity < self.l_threshold:
+            self.is_static = True
+            self.state_is_static_trigger()
 
 class TraceProcessor:
     def __init__(self) -> None:
@@ -112,34 +152,39 @@ class TraceVisualiser(TraceProcessor):
         return self
     
     def end_plot(self):
+        plt.legend()
         plt.show()
 
-    def plot_left_click(self) -> "TraceVisualiser":
+    def plot_left_click(self, height: float = 1) -> "TraceVisualiser":
         timestamps = self.get_left_clicks()
-        y = [1] * len(timestamps)
+        y = [height] * len(timestamps)
 
-        self._ax.stem(timestamps, y)
+        self._ax.stem(timestamps, y, label = "action")
         return self
     
     def plot_similarities(self) -> "TraceVisualiser":
         similarities, timestamps = self.screen_similarities
-        self._ax.plot(timestamps, similarities)
+        self._ax.plot(timestamps, similarities, label = "similarities")
         return self
 
     def plot_similarities_moving_average(self, n: int) -> "TraceVisualiser":
         similarities, timestamps = self.screen_similarities
         avg_similarities = _DataProcessor.moving_average(similarities, n)
 
-        self._ax.plot(timestamps, avg_similarities)
+        self._ax.plot(timestamps, avg_similarities, label = "moving avg. sim.")
         return self
 
     def plot_state_change_detector(self, n: int, height: float = 1) -> "TraceVisualiser":
         similarities, timestamps = self.screen_similarities
         avg_similarities = _DataProcessor.moving_average(similarities, n)
-        edges, values = _DataProcessor.comparator(avg_similarities, timestamps, 0.2)
+        edges, values = _DataProcessor.comparator(avg_similarities, timestamps, 0.05, 0.05)
         values = values * height
 
-        self._ax.stairs(values, edges)
+        self._ax.stairs(values, edges, label = "state change")
+        return self
+
+    def add_title(self, name: str) -> "TraceVisualiser":
+        plt.title(name)
         return self
 
 class _DataProcessor:
@@ -154,19 +199,19 @@ class _DataProcessor:
         return avg_data
     
     @classmethod
-    def comparator(cls, data_y: list[float], data_x: list[float], threshold: float) -> tuple[np.ndarray, list[float]]:
+    def comparator(cls, data_y: list[float], data_x: list[float], u_threshold: float, l_threshold: float) -> tuple[np.ndarray, list[float]]:
         edges = [data_x[0]]
-        values = np.array([])
-
         state = 0
+        values = np.array([state])
 
         for y, x in zip(data_y, data_x):
-            if y > threshold and state == 0:
+            if y > u_threshold and state == 0:
                 state = 1
                 edges.append(x)
                 values = np.append(values, 1)
-            if y < threshold and state == 1:
+            if y < l_threshold and state == 1:
                 state = 0
                 edges.append(x)
                 values = np.append(values, 0)
+        edges.append(data_x[-1])
         return edges, values
