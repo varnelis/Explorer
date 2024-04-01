@@ -9,6 +9,7 @@ import numpy as np
 from torch import Tensor
 from tqdm import tqdm
 import contextlib
+import json
 
 from Explorer.trace_similarity.screen_similarity import ScreenSimilarity
 
@@ -186,6 +187,27 @@ class TraceVisualiser(TraceProcessor):
     def add_title(self, name: str) -> "TraceVisualiser":
         plt.title(name)
         return self
+    
+class TraceProcessorUser1:
+    def __init__(self) -> None:
+        with open('./temp/processed_trace.json') as f:
+            self.processed_trace_user_1 = json.load(f)
+        
+    def get_trace_length(self) -> int:
+        """ Number of states in User 1 processed trace """
+        return len(self.processed_trace_user_1["trace"]["state_action_pairs"])
+
+    def get_state_action_n(self, n: int) -> tuple[Image.Image, tuple[float,float]]:
+        """ Return Image & Action Position for nth state in User 1 processed Trace """
+        state_action_pair_n = self.processed_trace_user_1["trace"]["state_action_pairs"][n]
+        state_uuid = state_action_pair_n["img"]
+        state = Image.open(f"./temp/screenshots/{state_uuid}.png")
+        if state_action_pair_n["action"] != "None":
+            action = state_action_pair_n["action"]["position"]
+        else:
+            action = None
+
+        return state, action
 
 class _DataProcessor:
     @classmethod
