@@ -115,7 +115,7 @@ class ActionMatching(ScreenSimilarity):
 
             if include_ocr is True:
                 ocr_dist = self.encoding_distance(ocr_embedding_image1, ocr_embeddings_image2[i])
-                print('ocr dist = ', ocr_dist)
+                #print('ocr dist = ', ocr_dist)
                 total_dist += ocr_dist
             
             if total_dist < min_dist:
