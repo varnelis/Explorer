@@ -561,22 +561,6 @@ def objective_2():
     qt_app = QApplication(sys.argv)
     app = TraversalApplication()
     app.show()
-
-    app.attach_exec(
-        exec_func = lambda : QApplication.postEvent(
-            app,
-            QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier)
-        ),
-        target = "interactable_user2"
-    )
-    app.attach_exec(
-        exec_func = lambda : QApplication.postEvent(
-            app,
-            QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier)
-        ),
-        target = "exit"
-    )
-
     qt_app.exec_()
 
 main.add_command(hello_world)
