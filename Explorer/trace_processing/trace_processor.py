@@ -46,7 +46,6 @@ class RollingStateProcessor:
     
     def update_state(self):
         similarity = sum(self.screen_similarities)
-        print(similarity)
         if self.is_static is True and similarity > self.u_threshold:
             self.is_static = False
             self.state_is_changing_trigger()

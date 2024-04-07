@@ -1,13 +1,13 @@
 
 
-from typing import Callable, Literal
-from multiprocessing import Process, Queue, Value
+from typing import Callable, Literal, Mapping
+from multiprocessing import Process, Queue, Event
 import queue
 import time
 import sys
-from PyQt5.QtGui import QKeyEvent
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5 import QtWidgets
+from PyQt5.QtGui import QKeyEvent, QMouseEvent
+from PyQt5.QtCore import Qt, QTimer, QEvent, QPoint
+from PyQt5.QtWidgets import QApplication, qApp
 import mss
 from Explorer.overlay.transparent_overlay import ScreenOverlay
 from PIL import Image
@@ -22,46 +22,27 @@ class TraversalApplication(ScreenOverlay):
     def __init__(self):
         super().__init__()
 
-        self.showMinimized()
-
         self.screenshot_queue: Queue = Queue(1)
-        self.terminator_flag = Value('I', 0, lock = False)
         self.time_ref = time.time()
-        self.screenshot_grabber = Process(target=graber, args=(self.screenshot_queue, self.terminator_flag, self.time_ref))
+        self.screenshot_grabber = Grabber(self.screenshot_queue, self.time_ref)
         self.screenshot_grabber.start()
 
         self.state_processor = RollingStateProcessor(4, 0.3, 0.2, self.state_enters_static, self.state_enters_change)
         self.state_tracker_timer = QTimer(self)
         self.start_state_tracker()
 
-        self._executors: dict[str, Callable] = {
-            "interactable_user2": None, 
-            "exit": None
-        }
-
         self.trace_state_num = 0
         self.trace_len_user1 = TraceProcessorUser1().get_trace_length()
         print(f'User 1 trace with {self.trace_len_user1} states.')
-
-    def attach_exec(
-        self, 
-        exec_func: Callable, 
-        target: Literal["interactable_user2", "exit"]
-    ):
-        if target not in ["interactable_user2", "exit"]:
-            raise ValueError("wrong executor target")
-        self._executors[target] = exec_func
     
     def state_enters_static(self):
         print("State is static...")
 
         # register Key Return to trigger predict_interactable()
         if self.trace_state_num >= self.trace_len_user1 - 1:
-            exec = self._executors["exit"]
-        else:
-            exec = self._executors["interactable_user2"]
-        if not isinstance(exec, type(None)):
-            exec()
+            self.close()
+            return
+        self.predict_interactable()
 
     def state_enters_change(self):
         print("State is changing...")
@@ -72,7 +53,8 @@ class TraversalApplication(ScreenOverlay):
             self.predict_interactable()
 
         elif event.key() == Qt.Key.Key_Escape:
-            QtWidgets.qApp.quit()
+            self.close()
+            return
     
     def start_state_tracker(self):
         self.state_tracker_timer.timeout.connect(self.analyse_state)
@@ -88,13 +70,19 @@ class TraversalApplication(ScreenOverlay):
         self.state_processor.add_img(screenshot, timestamp)
 
     def predict_interactable(self):
+        self.stop_state_tracker()
+
+        print("predicting interactables...")
+
         screenshot_user2, _ = self.screenshot_queue.get()
+        screenshot_user2.save("screenshot.png")
+
         screenshot_user1, action_user1 = TraceProcessorUser1().get_state_action_n(self.trace_state_num)
         self.trace_state_num += 1
 
         if action_user1 is None:
-            exec = self._executors["exit"]
-            exec()
+            self.close()
+            return
 
         # action matching & show action box
         best_bbox_user2 = ActionMatching().replicate_action_on_given_state(
@@ -108,56 +96,81 @@ class TraversalApplication(ScreenOverlay):
         )
 
         print(f'Best User 2 bbox prediction: ', best_bbox_user2)
-
+        left, top, right, bottom = best_bbox_user2
+        offset = self.pos()
+        bbox = (left // 2 - offset.x(), top // 2 - offset.y(), right // 2 - offset.x(), bottom // 2 - offset.y())
         # show best bbox with overlay
-        self._show_window()
-        self.bboxes.set_bboxes([best_bbox_user2])
-        self.bboxes.show()
-        time.sleep(5)
-        self.click_bbox(best_bbox_user2)
+        #self.bboxes.set_bboxes([bbox])
+        #self.bboxes.show()
+        self.click_bbox(bbox)
 
     def _show_window(self):
         self.showNormal()
         self.setFocus()
 
     def click_bbox(self, bbox: tuple[float,float,float,float]):
+        print("clicking...")
         left, top, right, bottom = bbox
-        offset = self.pos()
-        pos = [(left + right) // 2 + offset.x(), (top + bottom) // 2 + offset.y()]
+        pos = [(left + right) // 2, (top + bottom) // 2]
         self.showMinimized()
         QTimer.singleShot(1000, lambda : self._click(pos))
-        QTimer.singleShot(2000, self._show_window)
         
     def _click(self, pos: tuple[float, float]):
         controller = Controller()
+
+        time.sleep(0.1)
         controller.mouse_set_position(pos[0], pos[1])
-        time.sleep(0.2)
+        time.sleep(0.1)
         controller.mouse_press(AnyButton.left)
         time.sleep(0.1)
         controller.mouse_release(AnyButton.left)
+        time.sleep(0.1)
+        controller.mouse_press(AnyButton.left)
+        time.sleep(0.1)
+        controller.mouse_release(AnyButton.left)
+        time.sleep(0.1)
+        self._show_window()
 
-def graber(img_queue: Queue, terminator, time_ref) -> None:
-    frame_period = 1.0 / 5.0
+        self.start_state_tracker()
+    
+    def close(self):
+        print("closing...")
+        self.screenshot_grabber.stop_event.set()
+        self.screenshot_grabber.join(5)
+        if self.screenshot_grabber.is_alive() is True:
+            self.screenshot_grabber.terminate()
+            self.screenshot_grabber.join(5)
+        print(f"grabber alive? {self.screenshot_grabber.is_alive()}")
+        qApp.quit()
 
-    with mss.mss() as sct:
+class Grabber(Process):
+    def __init__(self, img_queue, time_ref) -> None:
+        super().__init__()
+        self.stop_event = Event()
+        self.img_queue = img_queue
+        self.time_ref = time_ref
+        self.frame_period = 1.0 / 5.0
+    
+    def run(self):
+        sct = mss.mss()
         screen = sct.monitors[1]
-        while terminator.value == 0:
+        while not self.stop_event.is_set():
             start_time = time.time()
 
             screenshot = sct.grab(screen)
             img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
-            timestamp = time.time() - time_ref
 
+            timestamp = time.time() - self.time_ref
             try:
-                img_queue.get_nowait()
+                self.img_queue.get_nowait()
             except queue.Empty:
                 pass
             try:
-                img_queue.put_nowait((img, timestamp))
+                self.img_queue.put_nowait((img, timestamp))
             except queue.Full:
                 pass
-
-            while time.time() - start_time < frame_period:
+            while time.time() - start_time < self.frame_period:
                 pass
+        sct.close()
 
             
