@@ -22,6 +22,8 @@ class TraversalApplication(ScreenOverlay):
     def __init__(self):
         super().__init__()
 
+        self.action_matcher = ActionMatching()
+
         self.screenshot_queue: Queue = Queue(1)
         self.time_ref = time.time()
         self.screenshot_grabber = Grabber(self.screenshot_queue, self.time_ref)
@@ -40,7 +42,7 @@ class TraversalApplication(ScreenOverlay):
 
         # register Key Return to trigger predict_interactable()
         if self.trace_state_num >= self.trace_len_user1 - 1:
-            self.close()
+            self.signal_close()
             return
         self.predict_interactable()
 
@@ -53,7 +55,7 @@ class TraversalApplication(ScreenOverlay):
             self.predict_interactable()
 
         elif event.key() == Qt.Key.Key_Escape:
-            self.close()
+            self._close()
             return
     
     def start_state_tracker(self):
@@ -73,19 +75,20 @@ class TraversalApplication(ScreenOverlay):
         self.stop_state_tracker()
 
         print("predicting interactables...")
-
         screenshot_user2, _ = self.screenshot_queue.get()
         screenshot_user2.save("screenshot.png")
+
+        self.screenshot_grabber.pause_event.set()
 
         screenshot_user1, action_user1 = TraceProcessorUser1().get_state_action_n(self.trace_state_num)
         self.trace_state_num += 1
 
         if action_user1 is None:
-            self.close()
+            self.signal_close()
             return
 
         # action matching & show action box
-        best_bbox_user2 = ActionMatching().replicate_action_on_given_state(
+        best_bbox_user2 = self.action_matcher.replicate_action_on_given_state(
             screenshot_user1, 
             screenshot_user2, 
             action_user1, 
@@ -95,7 +98,6 @@ class TraversalApplication(ScreenOverlay):
             savedir=None,
         )
 
-        print(f'Best User 2 bbox prediction: ', best_bbox_user2)
         left, top, right, bottom = best_bbox_user2
         offset = self.pos()
         bbox = (left // 2 - offset.x(), top // 2 - offset.y(), right // 2 - offset.x(), bottom // 2 - offset.y())
@@ -131,9 +133,14 @@ class TraversalApplication(ScreenOverlay):
         time.sleep(0.1)
         self._show_window()
 
+        self.screenshot_grabber.pause_event.clear()
         self.start_state_tracker()
     
-    def close(self):
+    def signal_close(self):
+        QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier)
+        self.update()
+    
+    def _close(self):
         print("closing...")
         self.screenshot_grabber.stop_event.set()
         self.screenshot_grabber.join(5)
@@ -147,6 +154,7 @@ class Grabber(Process):
     def __init__(self, img_queue, time_ref) -> None:
         super().__init__()
         self.stop_event = Event()
+        self.pause_event = Event()
         self.img_queue = img_queue
         self.time_ref = time_ref
         self.frame_period = 1.0 / 5.0
@@ -156,6 +164,11 @@ class Grabber(Process):
         screen = sct.monitors[1]
         while not self.stop_event.is_set():
             start_time = time.time()
+
+            if self.pause_event.is_set():
+                while time.time() - start_time < self.frame_period:
+                    pass
+                continue
 
             screenshot = sct.grab(screen)
             img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
