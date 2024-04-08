@@ -23,7 +23,7 @@ class Buffer(deque):
 
 class RollingStateProcessor:
     def __init__(self, roll_window, u_threshold, l_threshold, static_trigger: callable, changing_trigger: callable) -> None:
-        self.is_static = True
+        self.is_static = False
         self.u_threshold = u_threshold
         self.l_threshold = l_threshold
         self.state_is_changing_trigger = changing_trigger
