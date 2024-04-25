@@ -89,18 +89,20 @@ class TraceProcessor:
         _, tail = os.path.split(filepath)
         return tail.split(".")[0]
             
-    def get_left_clicks(self) -> list:
+    def get_left_clicks(self) -> tuple[list, list]:
         currently_pressed = False
-        left_clicks = []
+        timestamps = []
+        positions = []
         for s in self.raw_states:
             state = int(s["mouse_state"])
 
             if currently_pressed is True and state == 0:
-                left_clicks.append(int(s["time(ms)"]))
+                timestamps.append(int(s["time(ms)"]))
+                positions.append((int(s["x"]), int(s["y"])))
 
             currently_pressed = True if state == 2 else False
 
-        return left_clicks
+        return timestamps, positions
     
     def get_embeddings_sorted_by_time(self) -> list[tuple[Tensor, any]]:
         uuid2embedding = [(k, v) for k, v in self.screenshot_embeddings.items()]
@@ -127,6 +129,96 @@ class TraceProcessor:
 
         print("screen similarities calculated")
         return self
+
+    def generate_trace_recording(
+            self,
+            window: int = 10,
+            u_threshold: float = 0.05,
+            l_thresholds: float = 0.05
+        ):
+
+        timestamps_left_clicks, positions_left_clicks = self.get_left_clicks()
+
+        similarities, timestamps_similarities = self.screen_similarities
+        avg_similarities = _DataProcessor.moving_average(similarities, window)
+        edges, values = _DataProcessor.comparator(
+            avg_similarities,
+            timestamps_similarities,
+            u_threshold,
+            l_thresholds
+        )
+
+        timestamps_state_change = [e for e, v in zip(edges, values) if v == 1]
+        current_state_change = timestamps_state_change.pop(0)
+        timestamps_target_clicks = []
+        positions_target_clicks = []
+        for prev_t, curr_t, prev_p in zip(timestamps_left_clicks, timestamps_left_clicks[1:], positions_left_clicks):
+            if curr_t < current_state_change:
+                continue
+
+            timestamps_target_clicks.append(prev_t)
+            positions_target_clicks.append(prev_p)
+            if len(timestamps_state_change) == 0:
+                break
+            current_state_change = timestamps_state_change.pop(0)
+        if len(timestamps_state_change) != len(timestamps_target_clicks) and current_state_change > timestamps_left_clicks[-1]:
+            timestamps_target_clicks.append(timestamps_left_clicks[-1])
+            positions_target_clicks.append(positions_left_clicks[-1])
+
+
+        current_click = timestamps_target_clicks.pop(0)
+        target_states = []
+        for prev, curr in zip(timestamps_similarities, timestamps_similarities[1:]):
+            if curr < current_click:
+                continue
+
+            target_states.append(prev)
+            if len(timestamps_target_clicks) == 0:
+                break
+            current_click = timestamps_target_clicks.pop(0)
+        
+        target_states.append(timestamps_similarities[-1])
+
+        print(f"target_states: {target_states}")
+        print(f"clicks: {timestamps_left_clicks}")
+
+        def get_action(uuid, pos):
+            if pos is None:
+                return {
+                    "img": uuid,
+                    "action": "None"
+                }
+
+            return {
+                "img": uuid,
+                "action": {
+                    "type": "left_click",
+                    "position": pos
+                }
+            }
+
+        trace_dict = {
+            "trace" : {
+                "state_action_pairs" : []
+            }
+        }
+
+        uuid2timestamp = [(key, val) for key, val in self.screenshot_timestamps.items()]
+        uuid2timestamp.sort(key = lambda x: x[1])
+        current_target_state = target_states.pop(0)
+        for uuid, t in uuid2timestamp:
+            if t != current_target_state:
+                continue
+            
+            if len(target_states) == 0:
+                trace_dict["trace"]["state_action_pairs"].append(get_action(uuid, None))
+                break
+            trace_dict["trace"]["state_action_pairs"].append(get_action(uuid, positions_target_clicks.pop(0)))
+            current_target_state = target_states.pop(0)
+
+        with open("./temp/processed_trace.json", "w") as f:
+            json.dump(trace_dict, f)
+
 
 class TraceVisualiser(TraceProcessor):
     def __init__(self) -> None:
@@ -156,7 +248,7 @@ class TraceVisualiser(TraceProcessor):
         plt.show()
 
     def plot_left_click(self, height: float = 1) -> "TraceVisualiser":
-        timestamps = self.get_left_clicks()
+        timestamps, _ = self.get_left_clicks()
         y = [height] * len(timestamps)
 
         self._ax.stem(timestamps, y, label = "action")

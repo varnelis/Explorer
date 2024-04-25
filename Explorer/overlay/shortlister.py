@@ -88,11 +88,15 @@ class Shortlister:
         
         self.img_w_bboxes.show()
 
-    def save(self) -> "Shortlister":
+    def save(self, prefix: str = "") -> "Shortlister":
         if self.img_w_bboxes is None:
             self._add_bboxes_to_img()
         
-        self.img_w_bboxes.save(f"./shortlist_images/{self.model}.png")
+        if prefix == "":
+            self.img_w_bboxes.save(f"./shortlist_images/{self.model}.png")
+        else:
+            self.img_w_bboxes.save(f"./shortlist_images/{prefix}-{self.model}.png")
+
 
     def _add_bboxes_to_img(self):
         if self.bboxes is None:
