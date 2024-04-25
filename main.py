@@ -387,28 +387,31 @@ def show_image_by_id(id):
 
 
 @click.command()
-@click.option("--img", required=False, default="", type=str, help="Image to get bboxes")
+@click.option("--path", required=False, default="", type=str, help="Image to get bboxes")
 @click.option("--shortlist_threshold", required=False, default=0.5, type=float, help="Lower threshold for interactables")
 @click.option("--nms_iou_threshold", required=False, default=0.2, type=float, help="Upper threshold for IoU NMS")
 def shortlist_image_bbox(
-    img: str = "",
+    path: str = "",
     shortlist_threshold: float = 0.5,
     nms_iou_threshold: float = 0.2,
 ):
-    if img == "":
-        img = Image.open("./shortlist_images/image_raw.png")
-        #img = Image.open("./Explorer/trace_similarity/test_action_matching/Ex2_ArnasToIasonScreen/iason1.png")
-    else:
-        img = Image.open(img)
-    shortlister = Shortlister()
+    for i in range(1, 12):
+        if path == "":
+            img = Image.open(f"./shortlist_images/{i}.png")
+            prefix = f"{i}"
+            #img = Image.open("./Explorer/trace_similarity/test_action_matching/Ex2_ArnasToIasonScreen/iason1.png")
+        else:
+            img = Image.open(path)
+            prefix = path.split(sep = "/")[-1]
+        shortlister = Shortlister()
 
-    shortlister.set_img(img)
+        shortlister.set_img(img)
 
-    #shortlister.set_model("ocr").set_bboxes().save()
-    shortlister.set_model("interactable-detector").set_bboxes().show()#.save()#
-    #shortlister.set_model("vins").set_bboxes().save()
-    #shortlister.set_model("web350k").set_bboxes().save()
-    #shortlister.set_model("web7kbal").set_bboxes().save()
+        shortlister.set_model("ocr").set_bboxes().save(prefix)
+        shortlister.set_model("interactable-detector").set_bboxes().save(prefix)
+        shortlister.set_model("vins").set_bboxes().save(prefix)
+        shortlister.set_model("web350k").set_bboxes().save(prefix)
+        shortlister.set_model("web7kbal").set_bboxes().save(prefix)
 
 @click.command()
 def objective_1():
@@ -546,21 +549,23 @@ def process_trace():
     processor.make_gif()
     processor.calculate_embeddings().load_screenshot_similarities()
 
-    processor.start_plot().plot_similarities().end_plot()
-    processor.start_plot().plot_similarities().plot_similarities_moving_average(10).plot_left_click().end_plot()
+    processor.generate_trace_recording()
 
-    processor.start_plot() \
-    .plot_similarities() \
-    .plot_similarities_moving_average(10) \
-    .plot_state_change_detector(10, 0.5) \
-    .plot_left_click(0.5) \
-    .end_plot()
+    #processor.start_plot().plot_similarities().end_plot()
+    #processor.start_plot().plot_similarities().plot_similarities_moving_average(10).plot_left_click().end_plot()
+#
+    #processor.start_plot() \
+    #.plot_similarities() \
+    #.plot_similarities_moving_average(10) \
+    #.plot_state_change_detector(10, 0.5) \
+    #.plot_left_click(0.5) \
+    #.end_plot()
 
 @click.command()
 def objective_2():
     qt_app = QApplication(sys.argv)
     app = TraversalApplication()
-    app.show()
+    app._show_window()
     qt_app.exec_()
 
 main.add_command(hello_world)

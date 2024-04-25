@@ -169,16 +169,23 @@ class Scrapper:
         self.graph_count += 1
 
 def show_graph():
-    g = ig.load("./khan-academy-2.gml")
+    g = ig.load("./khan-academy.gml")
+    print("loaded")
     communities = g.community_edge_betweenness()
+    print("betweennesss generated")
     communities = communities.as_clustering()
 
     num_communities = len(communities)
+    print(f"clustering generated with {num_communities} communities")
+    pb = tqdm(total = num_communities)
+
     palette1 = ig.RainbowPalette(n=num_communities)
     for i, community in enumerate(communities):
         g.vs[community]["color"] = i
         community_edges = g.es.select(_within=community)
         community_edges["color"] = i
+        pb.update()
+        
     g.vs["name"] = ["\n\n" + label for label in g.vs["name"]]
     fig1, ax1 = plt.subplots()
     ig.plot(
@@ -209,7 +216,7 @@ def count_profiles():
 
 def first_level_uris():
     g = ig.load("./khan-academy.gml")
-    uri_template = re.compile("\/[\w\-]*[\/\?]*")
+    uri_template = re.compile(r"\/[\w\-]*[\/\?]*")
     uris = defaultdict(int)
     total_count = 0
 
@@ -257,7 +264,7 @@ def most_referenced():
 
 def most_referenced_first_level_uris():
     g = ig.load("./khan-academy.gml")
-    uri_template = re.compile("\/[\w\-]*[\/\?]*")
+    uri_template = re.compile(r"\/[\w\-]*[\/\?]*")
     uris = defaultdict(int)
     popular_links = PopularityStack(30)
     for v in g.vs:
@@ -276,7 +283,7 @@ def most_referenced_first_level_uris():
 
 def generate_scanning_links():
     g = ig.load("./khan-academy.gml")
-    uri_template = re.compile("(\/[\w\-]*)[\/\?]*")
+    uri_template = re.compile(r"(\/[\w\-]*)[\/\?]*")
     uris = {}
     uris["total"] = 0
 
