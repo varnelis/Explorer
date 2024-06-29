@@ -168,3 +168,5 @@ temp/
 *.csv
 *.npz
 *.ckpt
+*.gif
+*.zip

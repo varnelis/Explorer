@@ -29,6 +29,9 @@ from Explorer.tf_idf.tokenizer import Tokenizer as TFIDF_Tokenizer
 from Explorer.tf_idf.filters import LowerCaseFilter as TFIDF_LowerCaseFilter
 from Explorer.overlay.shortlister import Shortlister
 from Explorer.speech.speech2text import CommandPhrase, Speech2Text
+from Explorer.trace_processing.traversal_application import TraversalApplication
+from Explorer.trace_similarity.action_matching import ActionMatching
+from Explorer.trace_processing.trace_processor import TraceProcessor, TraceVisualiser
 from Explorer.trace_similarity.screen_similarity import ScreenSimilarity
 
 import seaborn as sns
@@ -59,6 +62,8 @@ def record() -> None:
     start_time = time.time()
     recorder.start(start_time)
     grabber.start(start_time)
+
+    print("started!")
 
     while recorder.is_running():
         time.sleep(1)
@@ -382,22 +387,31 @@ def show_image_by_id(id):
 
 
 @click.command()
+@click.option("--path", required=False, default="", type=str, help="Image to get bboxes")
 @click.option("--shortlist_threshold", required=False, default=0.5, type=float, help="Lower threshold for interactables")
 @click.option("--nms_iou_threshold", required=False, default=0.2, type=float, help="Upper threshold for IoU NMS")
 def shortlist_image_bbox(
-    shortlist_threshold: float,
-    nms_iou_threshold: float,
+    path: str = "",
+    shortlist_threshold: float = 0.5,
+    nms_iou_threshold: float = 0.2,
 ):
-    img = Image.open("./shortlist_images/image_raw.png")
-    shortlister = Shortlister()
+    for i in range(1, 12):
+        if path == "":
+            img = Image.open(f"./shortlist_images/{i}.png")
+            prefix = f"{i}"
+            #img = Image.open("./Explorer/trace_similarity/test_action_matching/Ex2_ArnasToIasonScreen/iason1.png")
+        else:
+            img = Image.open(path)
+            prefix = path.split(sep = "/")[-1]
+        shortlister = Shortlister()
 
-    shortlister.set_img(img)
+        shortlister.set_img(img)
 
-    shortlister.set_model("ocr").set_bboxes().save()
-    shortlister.set_model("interactable-detector").set_bboxes().save()
-    shortlister.set_model("vins").set_bboxes().save()
-    shortlister.set_model("web350k").set_bboxes().save()
-    shortlister.set_model("web7kbal").set_bboxes().save()
+        shortlister.set_model("ocr").set_bboxes().save(prefix)
+        shortlister.set_model("interactable-detector").set_bboxes().save(prefix)
+        shortlister.set_model("vins").set_bboxes().save(prefix)
+        shortlister.set_model("web350k").set_bboxes().save(prefix)
+        shortlister.set_model("web7kbal").set_bboxes().save(prefix)
 
 @click.command()
 def objective_1():
@@ -428,7 +442,6 @@ def objective_1():
         target = CommandPhrase.STOP
     )
     speech2text.listen()
-
     qt_app.exec_()
     speech2text.stop_listen()
 
@@ -447,7 +460,8 @@ def speech_execution():
     speech2text.stop_listen()
 
 @click.command()
-def trace_sim():
+@click.option("--include_ocr", required=False, default=False, type=bool, help="Use Screensim model + OCR embedding distance")
+def trace_sim(include_ocr):
     def uuid2image(uuid: str) -> Image.Image:
         path = os.path.join('./selenium_scans/screenshots', uuid + '.png')
         image = Image.open(path)
@@ -461,8 +475,104 @@ def trace_sim():
     ]
     for i in range(len(trace_frames)):
         trace_frames[i] = uuid2image(trace_frames[i])
-    screensim.trace_self_similarity(trace_frames)
+    screensim.trace_self_similarity(trace_frames, include_ocr=include_ocr)
 
+
+@click.command()
+@click.option("--include_ocr", required=False, default=False, type=bool, help="Use Screensim model + OCR embedding distance")
+@click.option("--verbose_show", required=False, default=1, type=int, help="Show images in action matching")
+def action_matching(include_ocr, verbose_show):
+    test_path = './Explorer/trace_similarity/test_action_matching/Ex3_ArnasToIasonScreen'
+
+    def name2image(name: str) -> Image.Image:
+        path = os.path.join(test_path, name + '.png')
+        image = Image.open(path)
+        return image
+    
+    action_matcher = ActionMatching()
+    # Example 1 - Iason to Iason
+    '''image_user1 = name2image('user1_khanexample1')
+    image_user2 = name2image('user2_khanexample1')
+    image_user3 = name2image('user3_khanexample1')
+    click_user1 = (150, 690)
+    bbox_user1 = (33,627,336,719)'''
+
+    # Example 2 - Nino (user1) to Iason (user2)
+    '''state_info = { # state: user1name, user2name, user1click
+        'state1': {'user1': 'nino1', 'user2': 'iason1', 'user1_click': (467,1218)},
+        'state2': {'user1': 'nino2', 'user2': 'iason2', 'user1_click': (1548,875)},
+        #'state3': {'user1': 'nino3', 'user2': 'iason3', 'user1_click': (1202,1380)},
+        'state4': {'user1': 'nino4', 'user2': 'iason4', 'user1_click': (2307,1447)},
+    }'''
+
+    # Example 3 - Arnas to Iason
+    '''state_info = { # state: user1name, user2name, user1click
+        'state1': {'user1': 'arnas1', 'user2': 'iason1', 'user1_click': (1237,672)},
+        'state2': {'user1': 'arnas1', 'user2': 'iason1', 'user1_click': (69,671)},
+        'state3': {'user1': 'arnas1', 'user2': 'iason1', 'user1_click': (1080,178)},
+        'state4': {'user1': 'iason1', 'user2': 'arnas1', 'user1_click': (1769,642)},
+        'state5': {'user1': 'iason1', 'user2': 'arnas1', 'user1_click': (78,651)},
+        'state6': {'user1': 'iason1', 'user2': 'arnas1', 'user1_click': (1316,147)},
+    }'''
+    
+    # Example 3.5 - Arnas to Iason
+    # Example 3 - Arnas to Iason
+    state_info = { # state: user1name, user2name, user1click
+        'state1': {'user1': 'arnas3', 'user2': 'iason3', 'user1_click': (124,632)}, # Rate problems
+        'state2': {'user1': 'arnas4', 'user2': 'iason4', 'user1_click': (1151,503)}, # continue with Apple
+        'state3': {'user1': 'arnas5', 'user2': 'iason5', 'user1_click': (116,425)}, # simulating phenomena with loops
+    }
+    mode = 'resized_full'
+
+    for state in state_info:
+        print('state compared: ', state)
+        image_user1 = name2image(state_info[state]['user1'])
+        image_user2 = name2image(state_info[state]['user2'])
+        click_user1 = state_info[state]['user1_click']
+        
+        savedir_noext=os.path.join(test_path, f'{state_info[state]["user1"]}_to_{state_info[state]["user2"]}')
+        best_bbox_user2 = action_matcher.replicate_action_on_given_state(
+            image_user1, 
+            image_user2, 
+            click_user1, 
+            mode="resized_full", 
+            include_ocr=include_ocr,
+            verbose_show=verbose_show, 
+            savedir=savedir_noext,
+        )
+
+        input()
+
+@click.command()
+@click.option("--path", required=False, default="./temp", type=str, help="path to trace recording")
+def process_trace(path):
+    processor = TraceVisualiser(path)
+    processor.make_gif()
+    processor.calculate_embeddings().load_screenshot_similarities()
+
+    window = 20
+    upper = 0.03
+    lower = 0.01
+
+    processor.generate_trace_recording(
+        window=window,
+        l_thresholds=lower,
+        u_threshold=upper
+    )
+
+    processor.start_plot() \
+    .plot_similarities() \
+    .plot_similarities_moving_average(window) \
+    .plot_state_change_detector(window, 0.5, lower, upper) \
+    .plot_left_click(0.5) \
+    .end_plot()
+
+@click.command()
+def objective_2():
+    qt_app = QApplication(sys.argv)
+    app = TraversalApplication()
+    app._show_window()
+    qt_app.exec_()
 
 main.add_command(hello_world)
 main.add_command(record)
@@ -484,6 +594,9 @@ main.add_command(shortlist_image_bbox)
 main.add_command(speech_execution)
 main.add_command(objective_1)
 main.add_command(trace_sim)
+main.add_command(action_matching)
+main.add_command(process_trace)
+main.add_command(objective_2)
 
 
 if __name__ == "__main__":
