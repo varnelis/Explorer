@@ -88,11 +88,15 @@ class Shortlister:
         
         self.img_w_bboxes.show()
 
-    def save(self) -> "Shortlister":
+    def save(self, prefix: str = "") -> "Shortlister":
         if self.img_w_bboxes is None:
             self._add_bboxes_to_img()
         
-        self.img_w_bboxes.save(f"./shortlist_images/{self.model}.png")
+        if prefix == "":
+            self.img_w_bboxes.save(f"./shortlist_images/{self.model}.png")
+        else:
+            self.img_w_bboxes.save(f"./shortlist_images/{prefix}-{self.model}.png")
+
 
     def _add_bboxes_to_img(self):
         if self.bboxes is None:
@@ -206,7 +210,7 @@ class Shortlister:
 
         return keep_bbox
 
-    def _iou(self, bbox1, bbox2):
+    def _iou(self, bbox1, bbox2, ret_I_over_area2: bool = False):
         """Get IoU of 2 bbox of format (xmin, ymin, xmax, ymax)"""
 
         # intersection
@@ -220,5 +224,8 @@ class Shortlister:
         area1 = (bbox1[2] - bbox1[0]) * (bbox1[3] - bbox1[1])
         area2 = (bbox2[2] - bbox2[0]) * (bbox2[3] - bbox2[1])
         union = area1 + area2 - intersection
+
+        if ret_I_over_area2 is True:
+            return intersection / area2
 
         return intersection / union

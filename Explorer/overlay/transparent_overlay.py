@@ -36,7 +36,6 @@ class RectangleWidget(QWidget):
         self.repaint()
 
     def paintEvent(self, event: QPaintEvent | None):
-        print("calling painting event for the Rectangle widget")
         painter = QPainter(self)
         painter.setPen(self.pen)
         for rect in self.rects:
@@ -60,8 +59,6 @@ class ScreenOverlay(QMainWindow):
         self.setGeometry(self.screen_size)
         #self.setStyleSheet("background:transparent;")
         self.setWindowOpacity(0.5)
-
-        print(self.pos())
 
         self.bboxes = RectangleWidget([])
         self.setCentralWidget(self.bboxes)

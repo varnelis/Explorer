@@ -1,10 +1,12 @@
 import os
 import gdown
 import torch
+import numpy as np
 from PIL import Image
 from Explorer.db.mongo_db import MongoDBInterface
 from Explorer.trace_similarity.embedding_exploration import Encoder
 from Explorer.trace_similarity.screensimilarity_model_CenterFPN import UIScreenEmbedder
+from Explorer.ocr.ocr import KhanOCR
 
 screensim_version = "v1.0.0"
 model2file = {"screensimilarity": "screensimilarity.ckpt"}
@@ -19,6 +21,7 @@ class ScreenSimilarity(Encoder):
 
         self._get_screensim_weights()
         self.screensim_model = UIScreenEmbedder.load_from_checkpoint(self.model_weights_path)
+        self.ocr_model = KhanOCR()
 
     def _get_img_features(self, image: Image.Image):        
         fpn = self.encoder(image=image, show_image=False)
@@ -51,6 +54,14 @@ class ScreenSimilarity(Encoder):
         center = torch.broadcast_to(center_upsample, (batch_size, 5, 256, 40, 44))
         embeddings = torch.cat((fpn.unsqueeze(1), center.unsqueeze(1)), dim=1)
         return embeddings
+    
+    def image2ocr(self, image: Image.Image) -> list[tuple[list[float, float, float, float], str]]:
+        _, ocr_bbox_text = self.ocr_model.get_base_ocr(np.array(image), confidence=0.5, ret_bbox_plus_text=True)
+        return ocr_bbox_text
+    
+    def ocr2embedding(self, ocr_text: list[str], concat: bool = False) -> torch.Tensor:
+        ocr_embeddings = self.ocr_model.word_embedding(ocr_text, concat=concat)
+        return torch.tensor(ocr_embeddings)
 
     def embeddings2similarity(self, embeddings_img1: torch.Tensor, embeddings_img2: torch.Tensor) -> tuple[float, bool]:
         outs1 = self.screensim_model.forward(embeddings_img1)
@@ -70,10 +81,22 @@ class ScreenSimilarity(Encoder):
             embeddings_img2 = self.image2embedding(image2)
             (dist, preds) = self.embeddings2similarity(embeddings_img1, embeddings_img2)
             distances.append(dist)
-        print('Distances: ', distances)
+        #print('Distances: ', distances)
+        return distances
+    
+    def ocr_embedding_similarity(self, ocr_embeddings_img1: torch.Tensor, ocr_embeddings_img2: torch.Tensor) -> float:
+        ocr_dist = self.encoding_distance(ocr_embeddings_img1, ocr_embeddings_img2)
+        return ocr_dist
+
+def uuid2image(uuid: str) -> Image.Image:
+    path = os.path.join('./selenium_scans/screenshots', uuid + '.png')
+    image = Image.open(path)
+    return image
 
 
 if __name__ == '__main__':
-    screensim = ScreenSimilarity('../../selenium_scans/screenshots')
+    screensim = ScreenSimilarity()
     trace_frames = ['f81ae48ac9894eb79e8708abcb97843e', '20a58d760c4a4e619270a042c4eb451f']
-    screensim.trace_self_similarity(trace_frames)
+    for i in range(len(trace_frames)):
+        trace_frames[i] = uuid2image(trace_frames[i])
+    screensim.trace_self_similarity(trace_frames, use_ocr=False)
