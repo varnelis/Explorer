@@ -54,12 +54,13 @@ class RollingStateProcessor:
             self.state_is_static_trigger()
 
 class TraceProcessor:
-    def __init__(self) -> None:
+    def __init__(self, folder: str = "./temp") -> None:
+        self.folder = folder
         self._fig = None
         self._ax = None
 
         self.raw_states = []
-        with open("./temp/capture_log.csv", "r") as csvfile:
+        with open(f"{folder}/capture_log.csv", "r") as csvfile:
             reader = csv.DictReader(csvfile)
             self.raw_states = list(reader)
         print("raw traces loaded")
@@ -69,14 +70,14 @@ class TraceProcessor:
         self.screenshot_timestamps: dict[UUID, any] = {}
         self.screen_similarities: tuple[list[float], list] | None = None
 
-        with open("./temp/screenshot_timestamps.csv", "r") as csvfile:
+        with open(f"{folder}/screenshot_timestamps.csv", "r") as csvfile:
             reader = csv.DictReader(csvfile)
             for entry in reader:
                 self.screenshot_timestamps[entry["uuid"]] = int(entry["timestamp"])
         print("screenshot timestamps loaded")
 
     def calculate_embeddings(self):
-        for img_name in tqdm(glob.glob("./temp/screenshots/*.png")):
+        for img_name in tqdm(glob.glob(f"{self.folder}/screenshots/*.png")):
             img = Image.open(img_name)
             embedding = self.screen_similarity_model.image2embedding(img)
             uuid = self.extract_uuid(img_name)
@@ -216,25 +217,25 @@ class TraceProcessor:
             trace_dict["trace"]["state_action_pairs"].append(get_action(uuid, positions_target_clicks.pop(0)))
             current_target_state = target_states.pop(0)
 
-        with open("./temp/processed_trace.json", "w") as f:
+        with open(f"{self.folder}/processed_trace.json", "w") as f:
             json.dump(trace_dict, f)
 
 
 class TraceVisualiser(TraceProcessor):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, path: str) -> None:
+        super().__init__(path)
     
     def make_gif(self):
-        fp_img = glob.glob("./temp/screenshots/*.png")
+        fp_img = glob.glob(f"{self.folder}/screenshots/*.png")
         fp_img.sort(
             key = lambda x: self.screenshot_timestamps[self.extract_uuid(x)]
         )
-        fp_out = "./temp/trace.gif"
+        fp_out = f"{self.folder}/trace.gif"
 
         with contextlib.ExitStack() as stack:
             imgs = (stack.enter_context(Image.open(f)) for f in fp_img)
             img = next(imgs)
-            img.save(fp=fp_out, format='GIF', append_images=imgs, save_all=True, duration=200, loop=0)
+            img.save(fp=fp_out, format='GIF', append_images=imgs, save_all=True, duration=10, loop=0)
         
         print("gif created")
         return self
@@ -266,10 +267,10 @@ class TraceVisualiser(TraceProcessor):
         self._ax.plot(timestamps, avg_similarities, label = "moving avg. sim.")
         return self
 
-    def plot_state_change_detector(self, n: int, height: float = 1) -> "TraceVisualiser":
+    def plot_state_change_detector(self, window: int, height: float = 1, l_threshold = 0.05, u_threshold = 0.05) -> "TraceVisualiser":
         similarities, timestamps = self.screen_similarities
-        avg_similarities = _DataProcessor.moving_average(similarities, n)
-        edges, values = _DataProcessor.comparator(avg_similarities, timestamps, 0.05, 0.05)
+        avg_similarities = _DataProcessor.moving_average(similarities, window)
+        edges, values = _DataProcessor.comparator(avg_similarities, timestamps, u_threshold, l_threshold)
         values = values * height
 
         self._ax.stairs(values, edges, label = "state change")
@@ -280,8 +281,8 @@ class TraceVisualiser(TraceProcessor):
         return self
     
 class TraceProcessorUser1:
-    def __init__(self) -> None:
-        with open('./temp/processed_trace.json') as f:
+    def __init__(self, folder: str = "./temp") -> None:
+        with open(f"{folder}/processed_trace.json") as f:
             self.processed_trace_user_1 = json.load(f)
         
     def get_trace_length(self) -> int:
@@ -292,7 +293,7 @@ class TraceProcessorUser1:
         """ Return Image & Action Position for nth state in User 1 processed Trace """
         state_action_pair_n = self.processed_trace_user_1["trace"]["state_action_pairs"][n]
         state_uuid = state_action_pair_n["img"]
-        state = Image.open(f"./temp/screenshots/{state_uuid}.png")
+        state = Image.open(f"{self.folder}/screenshots/{state_uuid}.png")
         if state_action_pair_n["action"] != "None":
             action = state_action_pair_n["action"]["position"]
         else:

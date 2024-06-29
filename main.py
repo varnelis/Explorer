@@ -544,22 +544,28 @@ def action_matching(include_ocr, verbose_show):
         input()
 
 @click.command()
-def process_trace():
-    processor = TraceVisualiser()
+@click.option("--path", required=False, default="./temp", type=str, help="path to trace recording")
+def process_trace(path):
+    processor = TraceVisualiser(path)
     processor.make_gif()
     processor.calculate_embeddings().load_screenshot_similarities()
 
-    processor.generate_trace_recording()
+    window = 20
+    upper = 0.03
+    lower = 0.01
 
-    #processor.start_plot().plot_similarities().end_plot()
-    #processor.start_plot().plot_similarities().plot_similarities_moving_average(10).plot_left_click().end_plot()
-#
-    #processor.start_plot() \
-    #.plot_similarities() \
-    #.plot_similarities_moving_average(10) \
-    #.plot_state_change_detector(10, 0.5) \
-    #.plot_left_click(0.5) \
-    #.end_plot()
+    processor.generate_trace_recording(
+        window=window,
+        l_thresholds=lower,
+        u_threshold=upper
+    )
+
+    processor.start_plot() \
+    .plot_similarities() \
+    .plot_similarities_moving_average(window) \
+    .plot_state_change_detector(window, 0.5, lower, upper) \
+    .plot_left_click(0.5) \
+    .end_plot()
 
 @click.command()
 def objective_2():
