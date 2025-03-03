@@ -170,3 +170,8 @@ temp/
 *.ckpt
 *.gif
 *.zip
+
+# Allows data/metadata files in model training
+!UIUnderstandingModels/downloads/*/*.png
+!UIUnderstandingModels/metadata/*/*.json
+!UIUnderstandingModels/metadata/*/*.csv

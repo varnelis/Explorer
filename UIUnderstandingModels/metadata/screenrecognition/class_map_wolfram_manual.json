@@ -1,0 +1,10 @@
+{
+    "idx2Label": {
+        "1": "clickable",
+        "0": "BACKGROUND"
+    },
+    "label2Idx": {
+        "clickable": 1,
+        "BACKGROUND": 0
+    }
+}
