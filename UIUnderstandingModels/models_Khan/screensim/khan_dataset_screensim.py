@@ -34,8 +34,7 @@ class KhanSimilarityDataset(torch.utils.data.IterableDataset):
     def __init__(self, 
                  split_file="../../metadata/screensim/train_split_khan_screensim.json", 
                  root_dir="../../downloads/khan/screenshots", 
-                 domain_map_file="../../metadata/screensim/domain_map.json",
-                 uuid2ocr_file="../../metadata/screensim/ocr/uuid2ocr_thres75.json",
+                 domain_map_file="../../metadata/screensim/domain_map.json"
                  ):
         super(KhanSimilarityDataset, self).__init__()
         
@@ -55,9 +54,6 @@ class KhanSimilarityDataset(torch.utils.data.IterableDataset):
             #if all([uuid in split_set for uuid in self.domain_map[url]]) and len(set(self.domain_map[url])) > 1:
             if url in split_set and len(set(self.domain_map[url])) > 1:
                 self.domain_list.append(url)
-
-        with open(uuid2ocr_file, 'r') as f:
-            self.uuid2ocr = json.load(f)
 
         self.enc = Encoder()
             
@@ -108,11 +104,7 @@ class KhanSimilarityDataset(torch.utils.data.IterableDataset):
             center_img_1_upsample = self.enc.upsample_aggregate(center_img1)
             center_img_2_upsample = self.enc.upsample_aggregate(center_img2)
 
-            # ocr embeddings from Sentence-BERT (Sentence Transformers)
-            ocr1 = torch.tensor(self.uuid2ocr[''.join(random_uuid_1.split('-'))][1])
-            ocr2 = torch.tensor(self.uuid2ocr[''.join(random_uuid_2.split('-'))][1])
-
-            return encodings_img1_upsample, encodings_img2_upsample, center_img_1_upsample, center_img_2_upsample, ocr1, ocr2
+            return encodings_img1_upsample, encodings_img2_upsample, center_img_1_upsample, center_img_2_upsample
         except:
             return self.sample_same_screen()
 
@@ -142,11 +134,7 @@ class KhanSimilarityDataset(torch.utils.data.IterableDataset):
             center_img_1_upsample = self.enc.upsample_aggregate(center_img1)
             center_img_2_upsample = self.enc.upsample_aggregate(center_img2)
 
-            # ocr embeddings from Sentence-BERT (Sentence Transformers)
-            ocr1 = torch.tensor(self.uuid2ocr[''.join(uuid1.split('-'))][1])
-            ocr2 = torch.tensor(self.uuid2ocr[''.join(uuid2.split('-'))][1])
-
-            return encodings_img1_upsample, encodings_img2_upsample, center_img_1_upsample, center_img_2_upsample, ocr1, ocr2
+            return encodings_img1_upsample, encodings_img2_upsample, center_img_1_upsample, center_img_2_upsample
         except:
             return self.sample_different_screen()
             

@@ -172,6 +172,6 @@ temp/
 *.zip
 
 # Allows data/metadata files in model training
-!UIUnderstandingModels/downloads/*/*.png
+!UIUnderstandingModels/downloads/*/screenshots/*.png
 !UIUnderstandingModels/metadata/*/*.json
 !UIUnderstandingModels/metadata/*/*.csv
