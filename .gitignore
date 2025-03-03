@@ -173,5 +173,6 @@ temp/
 
 # Allows data/metadata files in model training
 !UIUnderstandingModels/downloads/*/screenshots/*.png
+!UIUnderstandingModels/downloads/*/annotations/*.json
 !UIUnderstandingModels/metadata/*/*.json
 !UIUnderstandingModels/metadata/*/*.csv
