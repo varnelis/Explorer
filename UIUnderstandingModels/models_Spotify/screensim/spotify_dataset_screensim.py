@@ -34,8 +34,7 @@ class SpotifySimilarityDataset(torch.utils.data.IterableDataset):
     def __init__(self, 
                  split_file="../../metadata/screensim/train_split_spotify_screensim.json", 
                  root_dir="../../downloads/spotify/screenshots", 
-                 domain_map_file="../../metadata/screensim/domain_map_spotify.json",
-                 uuid2ocr_file="../../metadata/screensim/ocr/uuid2ocr_thres75.json",
+                 domain_map_file="../../metadata/screensim/domain_map_spotify.json"
                  ):
         super(SpotifySimilarityDataset, self).__init__()
         
