@@ -23,7 +23,7 @@ class Encoder():
 
         ARTIFACT_DIR = "./checkpoints_screenrecognition_khan"
         self.khan_model = UIElementDetector.load_from_checkpoint(
-            os.path.join(ARTIFACT_DIR, "last-v8.ckpt"), 
+            os.path.join(ARTIFACT_DIR, "khan_interactable_best.ckpt"), 
             val_weights=class_weights, 
             test_weights=class_weights, 
             lr=lr,

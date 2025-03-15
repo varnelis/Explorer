@@ -104,10 +104,10 @@ if __name__ == "__main__":
             log_every_n_steps=5,
         )
 
-        #if 0 and os.path.exists(os.path.join(ARTIFACT_DIR, 'last-v8.ckpt')): # path DISABLED for now -- not loading from past version
+        #if 0 and os.path.exists(os.path.join(ARTIFACT_DIR, 'khan_interactable_best.ckpt')): # path DISABLED for now -- not loading from past version
         #    print('loaded from last-v8')
         #    model = UIElementDetector.load_from_checkpoint(
-        #        os.path.join(ARTIFACT_DIR, "last-v8.ckpt"), val_weights=class_weights, test_weights=class_weights, lr=lr,
+        #        os.path.join(ARTIFACT_DIR, "khan_interactable_best.ckpt"), val_weights=class_weights, test_weights=class_weights, lr=lr,
         #    )
         #    model.hparams.lr = lr
         #    model.hparams.num_classes = FINETUNE_CLASSES

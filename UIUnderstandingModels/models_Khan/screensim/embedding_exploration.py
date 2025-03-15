@@ -25,7 +25,7 @@ class Encoder():
         # Load trained Interactable Detector to use its Feature-Pyramid features
         # for Screen Similarity model training
         self.khan_model = UIElementDetector.load_from_checkpoint(
-            "last-v8.ckpt", 
+            "khan_interactable_best.ckpt", 
             val_weights=class_weights, 
             test_weights=class_weights, 
             lr=lr,
