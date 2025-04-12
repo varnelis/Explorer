@@ -6,7 +6,7 @@ Our datasets on the KhanAcademy, Spotify, Wikipedia, and WolframAlpha UIs are au
 
 This directory is separated into complete sub-directories for dataloading and training Interactable Detection & Screen Similarity models for each of our datasets. We optionally finetune the Interactable Detectors on the final weights trained by Wu et al. in the [WebUI study](https://uimodeling.github.io/).
 
-### Model Training
+## Model Training
 We trained all models on the [JADE Slurm GPU cluster](https://docs.jade.ac.uk/en/latest/index.html).
 
 We trained Interactable Detector models with multi-GPU training via PyTorch Lightning on 8 GPUs (*distributed data-parallel*) at 32-bit precision. Aggregate learning rate is 0.64 and total batch size is 256; hence, for PT Lightning multi-GPU training, the effective per-GPU LR=0.08 and B=32.
